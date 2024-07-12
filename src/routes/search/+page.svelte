@@ -1,4 +1,109 @@
-<script>
+<script lang="ts">
+    import { onMount } from "svelte";
+    import {writable} from "svelte/store";
+    interface Song {
+        name: string;
+        interprete: string;
+        url: string;
+    }
+
+    interface SongRequest{
+        song: Song;
+        user: string;
+        status: string;
+    }
+
+    const clientId = import.meta.env.VITE_CLIENT_ID
+    const clientSecret = import.meta.env.VITE_CLIENT_SECRET
+
+    let accessToken = '';
+    let searchQuery = '';
+    let name = writable<string>('');
+    const songs = writable<Song[]>([]);
+    const showModal = writable(false);
+    let selectedSong: Song | null = null;
+onMount(() => {
+    const cachedName = localStorage.getItem('name');
+    name.set(cachedName || '');
+    
+    fetch('https://accounts.spotify.com/api/token',
+        {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`
+        }).then(response => response.json()
+    ).then(data => {
+        accessToken = data.access_token;
+    }).catch((error) => {
+        console.error('Error:', error);
+    })
+});
+
+    const searchMusic = async (query: String) => {
+        const response = await fetch(`https://api.spotify.com/v1/search?q=${query}&type=track&limit=10`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`
+            }
+        });
+        const data = await response.json();
+        songs.set(filterSongs(data));
+    }
+
+    function sendSongRequest(request: SongRequest) {
+        const url = '/api/request'; // Your backend endpoint URL
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(request),
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json(); // or .text() if the response is not JSON
+            })
+            .then(data => {
+                console.log('Success:', data);
+                // Handle success (e.g., show a confirmation message)
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                // Handle errors (e.g., show an error message)
+            });
+    }
+
+    const filterSongs = (data: any): Song[] => {
+        return data.tracks.items.map((item: any) => ({
+            name: item.name,
+            interprete: item.artists.map((artist: any) => artist.name).join(', '),
+            url: item.external_urls.spotify
+        }));
+    }
+
+    function openModal(song:Song) {
+        selectedSong = song;
+        confirm_modal.showModal()
+    }
+
+    function handleConfirm() {
+        const request: SongRequest = {
+            song: selectedSong as Song,
+            user: $name as string,
+            status: 'PENDING'
+        };
+        console.log(request);
+        sendSongRequest(request);
+        songs.set([]);
+        selectedSong = null;
+        searchQuery = '';
+    }
+
 </script>
 
 <svelte:head>
@@ -7,6 +112,21 @@
 </svelte:head>
 
 <section class="flex flex-col h-screen">
+    <dialog id="confirm_modal" class="modal">
+        <div class="modal-box">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+                <h3 class="text-lg font-bold">Wunsch</h3>
+                <p class="py-4 text-center">Wollen Sie sich wirklich den Song "{selectedSong?.name}" wünschen?</p>
+                <div class="flex justify-end gap-3">
+                <button class="btn btn-error w-2/6">Nein</button>
+                <button class="btn btn-success w-2/6" on:click={() => handleConfirm()}>Ja</button>
+            </div>
+            </form>
+        </div>
+    </dialog>
+
+
     <div class="flex items-center p-4 gap-3 bg-base-200 shadow-md">
         <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -25,7 +145,7 @@
         <h1 class="text-4xl uppercase font-bold">Jukebox</h1>
     </div>
 
-    <div class="flex flex-col h-5/6 justify-between self-center mt-10 w-11/12 md:w-5/12">
+    <div class="flex flex-col h-5/6 self-center mt-10 w-11/12 md:w-5/12">
         <div>
             <div class="flex flex-col items-center justify-center mb-4">
                 <h1 class="uppercase font-bold text-2xl text-gray-700">
@@ -33,62 +153,53 @@
                 </h1>
             </div>
             <label
-                class="input input-bordered flex items-center gap-2 w-full mb-4"
+                class="gap-2 flex items-center w-full mb-4"
             >
-                <input type="text" class="grow p-2" placeholder="Search" />
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 16 16"
-                    fill="currentColor"
-                    class="w-4 h-4 opacity-70"
-                    ><path
-                        fill-rule="evenodd"
-                        d="M9.965 11.026a5 5 0 1 1 1.06-1.06l2.755 2.754a.75.75 0 1 1-1.06 1.06l-2.755-2.754ZM10.5 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z"
-                        clip-rule="evenodd"
-                    /></svg
-                >
+                <input type="text" bind:value={searchQuery} class="input input-bordered flex-grow p-2" placeholder="Songtitel" />
+                <button on:click={() => searchMusic(searchQuery)} class="btn btn-primary">Suchen</button>
+
             </label>
         </div>
 
+        {#if $songs.length > 0}
         <div class="mb-6">
             <div class="overflow-x-auto">
                 <table class="table table-zebra w-full">
                     <!-- head -->
                     <thead>
                         <tr>
-                            <th>Song Name</th>
-                            <th>Interpret</th>
+                            <th class="text-xs sm:text-sm md:text-base">Songtitel</th>
+                            <th class="text-xs sm:text-sm md:text-base">Interpret</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- row 1 -->
-                        <tr>
-                            <td>Turn Red</td>
-                            <td>M Dot R</td>
-                        </tr>
-                        <!-- row 2 -->
-                        <tr>
-                            <td>Carmen</td>
-                            <td>Sido</td>
-                        </tr>
-                        <!-- row 3 -->
-                        <tr>
-                            <td>The Shinning</td>
-                            <td>Vince Staples</td>
-                        </tr>
-                        <!-- row 3 -->
-                        <tr>
-                            <td>The Shinning</td>
-                            <td>Vince Staples</td>
-                        </tr>
-                        <!-- row 3 -->
-                        <tr>
-                            <td>The Shinning</td>
-                            <td>Vince Staples</td>
-                        </tr>
+                    {#each $songs as song}
+                    <tr>
+                        <td class="text-xs sm:text-sm md:text-base">{song.name}</td>
+                        <td class="text-xs sm:text-sm md:text-base">{song.interprete}</td>
+                        <td>
+                            <button class="btn btn-info btn-outline btn-sm text-xs sm:text-sm" on:click={() => openModal(song)}>Wünschen</button>
+                        </td>
+                    </tr>
+                    {/each}
                     </tbody>
                 </table>
             </div>
         </div>
+        {:else}
+        <div class="flex-center ">
+            <h1 class="mb-4 text-xl font-extrabold leading-none tracking-tight text-gray-900 md:text-5xl lg:text-5xl dark:text-white">                Wünschen Sie sich was!
+            </h1>
+        </div>
+    {/if}
     </div>
 </section>
+
+<style>
+    .flex-center {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh; /* Use the full height of the viewport */
+    }
+</style>
