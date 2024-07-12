@@ -1,0 +1,8 @@
+version: '3.8'
+services:
+  mongodb:
+    image: mongo
+    volumes:
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro   # Mount init script
+    ports:
+      - "27017:27017"
