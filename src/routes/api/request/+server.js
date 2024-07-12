@@ -1,31 +1,41 @@
-// src/routes/api/request/+server.js
+import { connect } from '$lib/db.js';
+import { produce } from 'sveltekit-sse'
+
 
 export async function GET() {
-    // Handle GET request
-    const data = { message: 'Hello from the server!' };
-    return new Response(JSON.stringify(data), {
-    headers: { 'Content-Type': 'application/json' }
-});
+    try {
+        const db = await connect();
+        const songRequestsCollection = db.collection('songRequests');
+        const songRequests = await songRequestsCollection.find({}).toArray();
+
+        return new Response(JSON.stringify(songRequests), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        console.error('Error fetching song requests:', error);
+        return new Response(JSON.stringify({ error: 'Failed to fetch song requests' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
 }
 
 export async function POST({ request }) {
+
     try {
-    const songRequest = await request.json();
-
-    // Process the song request (e.g., save to database, perform some action)
-    console.log('Received song request:', songRequest);
-
-    // Respond with a success message or data
-    return new Response(JSON.stringify({ message: 'Song request received successfully' }), {
-    headers: { 'Content-Type': 'application/json' }
-});
-} catch (error) {
-    console.error('Error processing song request:', error);
-
-    return new Response(JSON.stringify({ error: 'Failed to process song request' }), {
-    status: 500,
-    headers: { 'Content-Type': 'application/json' }
-});
+        const songRequest = await request.json();
+        const db = await connect();
+        const result = await db.collection('songRequests').insertOne(songRequest);
+      
+        return new Response(JSON.stringify({ message: 'Song request received successfully', id: result.insertedId }), {
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        console.error('Error processing song request:', error);
+        return new Response(JSON.stringify({ error: 'Failed to process song request' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
 }
-}
-
