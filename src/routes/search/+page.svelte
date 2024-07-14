@@ -1,6 +1,9 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import {writable} from "svelte/store";
+    import Alert from "$lib/components/Alert.svelte";
+    import { alert } from "$lib/stores/alert";
+
     interface Song {
         name: string;
         interprete: string;
@@ -53,30 +56,47 @@ onMount(() => {
     }
 
     function sendSongRequest(request: SongRequest) {
-        const url = '/api/request'; // Your backend endpoint URL
+    const url = '/api/request'; // Your backend endpoint URL
 
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(request),
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json(); // or .text() if the response is not JSON
         })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.json(); // or .text() if the response is not JSON
-            })
-            .then(data => {
-                console.log('Success:', data);
-                // Handle success (e.g., show a confirmation message)
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                // Handle errors (e.g., show an error message)
+        .then(data => {
+            console.log('Success:', data);
+            alert.set({
+                type: 'alert-success',
+                message: 'Der Wunsch wurde erfolgreich eingereicht.',
+                visible: true
             });
+            // Hide the alert after a few seconds
+            setTimeout(() => {
+                alert.set({ type: '', message: '', visible: false });
+            }, 3000);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert.set({
+                type: 'alert-error',
+                message: 'Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.',
+                visible: true
+            });
+            // Hide the alert after a few seconds
+            setTimeout(() => {
+                alert.set({ type: '', message: '', visible: false });
+            }, 3000);
+        });
     }
+
 
     const filterSongs = (data: any): Song[] => {
         return data.tracks.items.map((item: any) => ({
@@ -112,6 +132,9 @@ onMount(() => {
 </svelte:head>
 
 <section class="flex flex-col h-screen">
+
+    <Alert />
+
     <dialog id="confirm_modal" class="modal">
         <div class="modal-box">
             <form method="dialog">
