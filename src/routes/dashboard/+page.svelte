@@ -3,6 +3,7 @@
     import {onMount} from "svelte";
     import { source } from 'sveltekit-sse'
     import { derived } from 'svelte/store';
+  import type { json } from "@sveltejs/kit";
 
     interface Song {
         name: string;
@@ -11,12 +12,12 @@
     }
 
 
-interface SongRequest{
-    _id: string;
-    song: Song;
-    user: string;
-    status: string; 
-}
+    type SongRequest = {
+        _id: string;
+        song: Song;
+        user: string;
+        status: string; 
+    }
 
     const requests = writable<SongRequest[]>([]);
 
@@ -45,6 +46,21 @@ interface SongRequest{
             });
 
     });
+
+
+    const connection = source('/api/newRequest');
+    const songRequest = connection.select('song-request-update').json(
+    function or({error, raw, previous}){
+      console.error(`Could not parse "${raw}" as json.`, error)
+      return previous  // This will be the new value of the store
+    }
+  )
+  $: if($songRequest){
+    requests.update(reqs => [...reqs, $songRequest])
+  }
+  
+  console.log($songRequest)
+
 
     const sortedRequests = derived(requests, $requests => {
         return $requests.slice().sort((a, b) => {
