@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: JubelJukebox
+  name: jubeljukebox-deployment
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: JubelJukebox
+      app: jubeljukebox
   template:
     metadata:
       labels:
-        app: JubelJukebox
+        app: jubeljukebox
     spec:
       containers:
-        - name: JubelJukebox
-          image: ghcr.io/jacolate/jubeljukebox:latest
+        - name: jubeljukebox
+          image: ghcr.io/jacolate/jubeljukebox:main
           ports:
             - containerPort: 3000
           env:
@@ -48,3 +48,5 @@ spec:
                 secretKeyRef:
                   name: jj-api-secret
                   key: CLIENT_SECRET
+      imagePullSecrets:
+        - name: ghcr-credentials

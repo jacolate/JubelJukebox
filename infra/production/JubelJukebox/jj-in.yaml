@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jubeljukebox-ingress2
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /ss
+            pathType: Prefix
+            backend:
+              service:
+                name: jubeljukebox-service
+                port:
+                  number: 80
