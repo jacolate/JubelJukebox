@@ -1,9 +1,15 @@
-import { MongoClient, ObjectId } from "mongodb";
+import { MongoClient } from "mongodb";
 import { publish } from "./pubsub";
 
-const url = process.env.MONGO_URI || "mongodb://localhost:27017";
-const dbName = process.env.DB_NAME || "admin";
+const dbUrl = process.env.MONGODB_HOST || "mongodb://localhost:27017";
+const dbUser = process.env.MONGODB_USERNAME || "admin";
+const dbPassword = process.env.MONGODB_PASSWORD || "admin";
+const dbName = "your-database-name"; // Replace with your MongoDB database name
 const environment = process.env.NODE_ENV || "development";
+
+const dbURI = `mongodb+srv://${dbUser}:${dbPassword}@${dbUrl}/${dbName}`;
+
+console.log("Connecting to MongoDB:", dbURI);
 
 let dbInstance = null;
 
@@ -13,7 +19,7 @@ async function connectToDB() {
             return dbInstance;
         }
 
-        const client = new MongoClient(url);
+        const client = new MongoClient(dbURI);
 
         try {
             await client.connect();
