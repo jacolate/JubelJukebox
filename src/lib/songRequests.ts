@@ -3,13 +3,13 @@ import { publish } from "./pubsub";
 
 console.log("Connecting to MongoDB");
 
-const dbUrl = process.env.MONGODB_HOST || "mongodb://localhost:27017";
+const dbUrl = process.env.MONGODB_HOST || "localhost:27017";
 const dbUser = process.env.MONGODB_USERNAME || "admin";
 const dbPassword = process.env.MONGODB_PASSWORD || "admin";
-const dbName = "your-database-name"; // Replace with your MongoDB database name
+const dbName = "songRequests"; // Replace with your MongoDB database name
 const environment = process.env.NODE_ENV || "development";
 
-const dbURI = `mongodb+srv://${dbUser}:${dbPassword}@${dbUrl}/${dbName}`;
+const dbURI = `mongodb://${dbUser}:${dbPassword}@${dbUrl}/${dbName}`;
 
 console.log("Connecting to MongoDB:", dbURI);
 
