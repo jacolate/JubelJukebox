@@ -6,6 +6,7 @@
     const SESSION_CODE = import.meta.env.VITE_SESSION_CODE;
 
     onMount(() => {
+        console.log("HIER: "+ SESSION_CODE)
         const name = localStorage.getItem('name');
         const code = localStorage.getItem('code');
 

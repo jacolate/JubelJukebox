@@ -4,9 +4,9 @@ metadata:
   name: jubeljukebox-service
 spec:
   selector:
-    app: JubelJukebox
+    app: jubeljukebox
   ports:
-    - name: http
+    - name: https
       protocol: TCP
-      port: 80
+      port: 443
       targetPort: 3000
