@@ -9,7 +9,7 @@ const dbPassword = process.env.MONGODB_PASSWORD || "admin";
 const dbName = "songRequests"; // Replace with your MongoDB database name
 const environment = process.env.NODE_ENV || "development";
 
-const dbURI = `mongodb://${dbUser}:${dbPassword}@${dbUrl}/${dbName}`;
+const dbURI = `mongodb://${dbUser}:${dbPassword}@${dbUrl}`;
 
 console.log("Connecting to MongoDB:", dbURI);
 
