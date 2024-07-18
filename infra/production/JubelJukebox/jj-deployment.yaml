@@ -15,6 +15,7 @@ spec:
       containers:
         - name: jubeljukebox
           image: ghcr.io/jacolate/jubeljukebox:main
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
           env:
@@ -28,6 +29,11 @@ spec:
                 configMapKeyRef:
                   name: jubeljukebox-config
                   key: NODE_ENV
+            - name: VITE_SESSION_CODE
+              valueFrom:
+                configMapKeyRef:
+                  name: jubeljukebox-config
+                  key: ENTRY_CODE
             - name: MONGODB_USERNAME
               valueFrom:
                 secretKeyRef:
