@@ -33,4 +33,4 @@ jobs:
       with:
         context: .
         push: true
-        tags: ${{github.actor}}/jubejukebox:$(date +%s)
+        tags: ${{github.actor}}/jubejukebox:${{(date +%s)}}
