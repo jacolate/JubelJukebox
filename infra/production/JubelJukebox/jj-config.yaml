@@ -3,5 +3,5 @@ kind: ConfigMap
 metadata:
   name: jubeljukebox-config
 data:
-  ENTRY_CODE: "***REMOVED***"
+  ENTRY_CODE: ***REMOVED***
   NODE_ENV: "production"
