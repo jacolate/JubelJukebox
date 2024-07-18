@@ -3,7 +3,7 @@
     import {onMount} from "svelte";
     import {goto} from "$app/navigation";
 
-    const SESSION_CODE = import.meta.env.VITE_SESSION_CODE;
+    const SESSION_CODE = "AD6FGH6J"//import.meta.env.VITE_SESSION_CODE;
 
     onMount(() => {
         console.log("HIER: "+ SESSION_CODE)

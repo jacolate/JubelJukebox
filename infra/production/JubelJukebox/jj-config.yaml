@@ -3,5 +3,5 @@ kind: ConfigMap
 metadata:
   name: jubeljukebox-config
 data:
-  ENTRY_CODE: "AD6FGH6J"
+  ENTRY_CODE: AD6FGH6J
   NODE_ENV: "production"
