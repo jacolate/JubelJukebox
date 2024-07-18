@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jubeljukebox-ingress
+spec:
+  rules:
+    - host: kathasagtjazuaron.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jubeljukebox-service
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - kathasagtjazuaron.de  # Replace with your domain
+      secretName: tls-secret  # Replace with your TLS secret containing your SSL certificate

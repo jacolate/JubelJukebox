@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jubeljukebox-config
+data:
+  MONGODB_DBPATH: /data/db
+  MONGODB_BINDIP: 0.0.0.0
+  MONGODB_HOST: mongodb://mongodb-svc.jubeljukebox.svc.cluster.local:27017/songrequests
+  MONGODB_PORT: "27017"
