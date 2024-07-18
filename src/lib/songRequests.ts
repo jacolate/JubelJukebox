@@ -1,6 +1,8 @@
 import { MongoClient } from "mongodb";
 import { publish } from "./pubsub";
 
+console.log("Connecting to MongoDB");
+
 const dbUrl = process.env.MONGODB_HOST || "mongodb://localhost:27017";
 const dbUser = process.env.MONGODB_USERNAME || "admin";
 const dbPassword = process.env.MONGODB_PASSWORD || "admin";
