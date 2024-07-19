@@ -1,7 +1,7 @@
 import { MongoClient, Db } from 'mongodb';
 
 let client: MongoClient;
-let dbb: Db;
+let dbb: Db = null;
 
 const dbUrl = process.env.MONGODB_HOST || "localhost:27017";
 const dbUser = process.env.MONGODB_USERNAME || "admin";
@@ -14,7 +14,7 @@ const dbURI = NODE_ENV === "development"
 
 const connectToDatabase = async (): Promise<Db> => {
     console.log("Connecting to MongoDB:", dbURI);
-    if (NODE_ENV !== "build") {
+    if (NODE_ENV === "development") {
         if (!client) {
             client = new MongoClient(dbURI);
 
@@ -26,12 +26,4 @@ const connectToDatabase = async (): Promise<Db> => {
     return dbb;
 };
 
-// Lazy loading database connection
-let dbPromise: Promise<Db> | null = null;
-
-export const getDb = (): Promise<Db> => {
-    if (!dbPromise) {
-        dbPromise = connectToDatabase();
-    }
-    return dbPromise;
-};
+export const db = await connectToDatabase();

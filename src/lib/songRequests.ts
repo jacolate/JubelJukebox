@@ -1,8 +1,7 @@
 import { MongoClient } from "mongodb";
 import { publish } from "./pubsub";
-import { getDb } from "$lib/server/db";
+import { db } from "$lib/server/db";
 
-const db = await getDb();
 
 export async function addSongRequest(songRequest) {
     try {
