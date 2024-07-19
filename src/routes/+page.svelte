@@ -3,11 +3,12 @@
     import { writable } from "svelte/store";
     import Alert from "$lib/components/Alert.svelte";
     import { alert } from "$lib/stores/alert";
-	import { enhance } from "$app/forms";
+    export let data;
+    $: username = data.username;
 
-	import type { ActionData } from "./$types";
+    import type { ActionData } from "./$types";
 
-	export let form: ActionData;
+    export let form: ActionData;
 
     interface Song {
         name: string;
@@ -26,12 +27,12 @@
 
     let accessToken = "";
     let searchQuery = "";
-    let name = writable<string>("");
+
+
     const songs = writable<Song[]>([]);
     const showModal = writable(false);
     let selectedSong: Song | null = null;
     onMount(() => {
-        console.log("TOCKEN:", clientId, clientSecret, accessToken);
         fetch("https://accounts.spotify.com/api/token", {
             method: "POST",
             headers: {
@@ -49,7 +50,6 @@
     });
 
     const searchMusic = async (query: String) => {
-        console.log("TOCKEN:", clientId, clientSecret, accessToken);
         const response = await fetch(
             `https://api.spotify.com/v1/search?q=${query}&type=track&limit=10`,
             {
@@ -124,7 +124,7 @@
     function handleConfirm() {
         const request: SongRequest = {
             song: selectedSong as Song,
-            user: $name as string,
+            user: username as string,
             status: "PENDING",
         };
         console.log(request);
