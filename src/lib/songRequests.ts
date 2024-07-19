@@ -1,18 +1,8 @@
 import { MongoClient } from "mongodb";
 import { publish } from "./pubsub";
-import { db } from "$lib/server/db";
+import { getDb } from "$lib/server/db";
 
-console.log("Connecting to MongoDB");
-
-const dbUrl = process.env.MONGODB_HOST || "localhost:27017";
-const dbUser = process.env.MONGODB_USERNAME || "admin";
-const dbPassword = process.env.MONGODB_PASSWORD || "admin";
-const dbName = "songRequests"; // Replace with your MongoDB database name
-const environment = process.env.NODE_ENV || "development";
-
-const dbURI = `mongodb://${dbUser}:${dbPassword}@${dbUrl}`;
-
-console.log("Connecting to MongoDB:", dbURI);
+const db = await getDb();
 
 export async function addSongRequest(songRequest) {
     try {

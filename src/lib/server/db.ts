@@ -26,4 +26,12 @@ const connectToDatabase = async (): Promise<Db> => {
     return dbb;
 };
 
-export const db = await connectToDatabase();
+// Lazy loading database connection
+let dbPromise: Promise<Db> | null = null;
+
+export const getDb = (): Promise<Db> => {
+    if (!dbPromise) {
+        dbPromise = connectToDatabase();
+    }
+    return dbPromise;
+};

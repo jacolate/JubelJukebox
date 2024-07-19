@@ -1,7 +1,7 @@
 import { Lucia } from 'lucia';
 import { MongodbAdapter } from "@lucia-auth/adapter-mongodb";
 import { Collection, MongoClient } from "mongodb";
-import { db } from '$lib/server/db';
+import { getDb } from '$lib/server/db';
 
 interface UserDoc {
 	_id: string;
@@ -15,6 +15,8 @@ interface SessionDoc {
 	expires_at: Date;
 	user_id: string;
 }
+
+const db = await getDb();
 
 const secretCode = "AD6FGH6J"; // Replace with your actual shared secret code
 
