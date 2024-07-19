@@ -13,7 +13,6 @@ export const POST: RequestHandler = async (event) => {
   try {
     // Ensure getSongRequests fetches the data correctly
     let songRequests = await getSongRequests();
-    console.log(songRequests);
 
     // Start producing SSE stream
     return produce(async function start({ emit }) {

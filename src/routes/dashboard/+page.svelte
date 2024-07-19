@@ -173,8 +173,8 @@
     <div class="flex flex-col justify-center">
         {#each $sortedRequests as request}
         <div class="card flex shadow-xl m-5 mx-auto w-3/4"
-        class:gray={request.status === "STASHED"}
-             class:dark-gray={request.status === "PLAYED"}>
+        class:bg-base-200={request.status === "STASHED"}
+             class:bg-base-300={request.status === "PLAYED"}>
              <div class="card-body flex-row justify-between items-center m-1 gap-3">
                 <div>
                 <p class="overflow-hidden"><strong>Song:</strong> {request.song.name}</p>
