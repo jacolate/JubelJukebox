@@ -64,6 +64,7 @@
                     type="text"
                     class="grow"
                     placeholder="Code"
+                    oninput="this.value = this.value.toUpperCase()"
                     required
                 />
             </label>

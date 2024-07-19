@@ -1,41 +1,41 @@
 import { Lucia } from 'lucia';
 import { MongodbAdapter } from "@lucia-auth/adapter-mongodb";
 import { Collection, MongoClient } from "mongodb";
-import { getDb } from '$lib/server/db';
+import { db } from '$lib/server/db';
 
 interface UserDoc {
-	_id: string;
-    user_id : string;
+    _id: string;
+    user_id: string;
     username: string;
     code: string;
 }
 
 interface SessionDoc {
-	_id: string;
-	expires_at: Date;
-	user_id: string;
+    _id: string;
+    expires_at: Date;
+    user_id: string;
 }
 
-const db = await getDb();
-
 const secretCode = "***REMOVED***"; // Replace with your actual shared secret code
+if (db === undefined) {
+    return;
+}
 
 const User = db.collection("users") as Collection<UserDoc>;
 const Session = db.collection("sessions") as Collection<SessionDoc>;
+const adapter = new MongodbAdapter(Session, User);
 
-const adapter = new  MongodbAdapter(Session, User);
-
-export const lucia = new Lucia(adapter,{
+export const lucia = new Lucia(adapter, {
     sessionCookie: {
         attributes: {
             secure: true
         }
     },
     getUserAttributes: (attributes) => {
-		return {
-			username: attributes.username
-		};
-	}
+        return {
+            username: attributes.username
+        };
+    }
 });
 
 export const verifyCode = (code: string): boolean => {
