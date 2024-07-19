@@ -1,8 +1,12 @@
 import { ObjectId } from "mongodb";
-import { updateSongRequest, deleteSongRequest } from "$lib/songRequests.ts";
+import { updateSongRequest, deleteSongRequest } from "$lib/songRequests";
+import { requireAuth } from "$lib/server/authMiddleware";
+import type { RequestHandler } from '@sveltejs/kit';
 
-export async function PUT({ params, request }) {
-  const { id } = params;
+export const PUT: RequestHandler = async (event) => {
+  await requireAuth(event); // Check authentication
+
+  const { id } = event.params;
 
   if (!ObjectId.isValid(id)) {
     return new Response(JSON.stringify({ error: "Invalid ID" }), {
@@ -12,10 +16,8 @@ export async function PUT({ params, request }) {
   }
 
   try {
-    // Parse the request body
-    const songRequest = await request.json();
+    const songRequest = await event.request.json();
 
-    // Update the song request in the collection
     const result = await updateSongRequest(new ObjectId(id), songRequest);
 
     if (result.matchedCount === 0) {
@@ -25,7 +27,6 @@ export async function PUT({ params, request }) {
       });
     }
 
-    // Respond with a success message
     return new Response(
       JSON.stringify({ message: "Song request updated successfully" }),
       {
@@ -43,10 +44,12 @@ export async function PUT({ params, request }) {
       }
     );
   }
-}
+};
 
-export async function DELETE({ params }) {
-  const { id } = params;
+export const DELETE: RequestHandler = async (event) => {
+  await requireAuth(event); // Check authentication
+
+  const { id } = event.params;
 
   if (!ObjectId.isValid(id)) {
     return new Response(JSON.stringify({ error: "Invalid ID" }), {
@@ -56,8 +59,6 @@ export async function DELETE({ params }) {
   }
 
   try {
-
-    // Delete the song request from the collection
     const result = await deleteSongRequest(new ObjectId(id));
 
     if (result.deletedCount === 0) {
@@ -67,7 +68,6 @@ export async function DELETE({ params }) {
       });
     }
 
-    // Respond with a success message
     return new Response(
       JSON.stringify({ message: "Song request deleted successfully" }),
       {
@@ -85,4 +85,4 @@ export async function DELETE({ params }) {
       }
     );
   }
-}
+};

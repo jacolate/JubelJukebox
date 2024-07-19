@@ -1,12 +1,14 @@
-import { json } from "@sveltejs/kit";
-import { produce } from "sveltekit-sse";
-import { publish, subscribe } from "$lib/pubsub.js";
-import { get, type Unsubscriber } from "svelte/store";
-import { getSongRequests } from "$lib/songRequests.js";
+import { json } from '@sveltejs/kit';
+import { produce } from 'sveltekit-sse';
+import { publish, subscribe } from '$lib/pubsub.js';
+import { getSongRequests } from '$lib/songRequests.js';
+import { requireAuth } from '$lib/server/authMiddleware';
+import type { RequestHandler } from '@sveltejs/kit';
 
-// SSE function to stream back user list and new messages
-export async function POST({ url }) {
-  let unsubscribeSongRequests: Unsubscriber;
+export const POST: RequestHandler = async (event) => {
+  await requireAuth(event); // Check authentication
+
+  let unsubscribeSongRequests;
 
   try {
     // Ensure getSongRequests fetches the data correctly
@@ -18,7 +20,7 @@ export async function POST({ url }) {
       // Emit initial song requests
       const { error } = emit('song-requests', JSON.stringify(songRequests));
       if (error) {
-        console.error("Error emitting song requests:", error);
+        console.error('Error emitting song requests:', error);
         return;
       }
 
@@ -33,7 +35,7 @@ export async function POST({ url }) {
       };
     });
   } catch (err) {
-    console.error("Error in SSE POST handler:", err);
+    console.error('Error in SSE POST handler:', err);
     return json({ error: 'Failed to initiate SSE' }, { status: 500 });
   }
-}
+};
