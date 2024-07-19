@@ -43,7 +43,7 @@ export async function updateSongRequest(id, songRequest) {
 
 export async function deleteSongRequest(id) {
     try {
-        const deletedRequest = await db.collection("songRequests").deleteOne({ _id: new ObjectId(id) });
+        const deletedRequest = await db.collection("songRequests").deleteOne({ _id: id });
         return deletedRequest;
     } catch (error) {
         console.error("Failed to delete song request", error);
