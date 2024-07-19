@@ -21,8 +21,8 @@
         status: string;
     }
 
-    const clientId = process.env.CLIENT_ID;
-    const clientSecret = process.env.CLIENT_SECRET;
+    const clientId = "***REMOVED***";
+    const clientSecret = "***REMOVED***";
 
     let accessToken = "";
     let searchQuery = "";
