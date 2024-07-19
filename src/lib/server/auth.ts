@@ -2,7 +2,7 @@ import { Lucia } from 'lucia';
 import { MongodbAdapter } from "@lucia-auth/adapter-mongodb";
 import { Collection, MongoClient } from "mongodb";
 import { db } from '$lib/server/db';
-
+import { building } from '$app/environment';
 interface UserDoc {
 	_id: string;
     user_id : string;
@@ -18,9 +18,12 @@ interface SessionDoc {
 
 const secretCode = "***REMOVED***"; // Replace with your actual shared secret code
 
-const User = db.collection("users") as Collection<UserDoc>;
-const Session = db.collection("sessions") as Collection<SessionDoc>;
-
+let User = null;
+let Session = null;
+if(!building){
+    User = db.collection("users") as Collection<UserDoc>;
+    Session = db.collection("sessions") as Collection<SessionDoc>;
+}
 const adapter = new  MongodbAdapter(Session, User);
 
 export const lucia = new Lucia(adapter,{
