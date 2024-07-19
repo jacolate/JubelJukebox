@@ -1,7 +1,8 @@
 import { MongoClient, Db } from 'mongodb';
+import { building } from '$app/environment';
 
 let client: MongoClient;
-let dbb: Db = null;
+let dbb: Db;
 
 const dbUrl = process.env.MONGODB_HOST || "localhost:27017";
 const dbUser = process.env.MONGODB_USERNAME || "admin";
@@ -13,8 +14,8 @@ const dbURI = NODE_ENV === "development"
     : `mongodb://${dbUser}:${dbPassword}@${dbUrl}`;
 
 const connectToDatabase = async (): Promise<Db> => {
+    if (!building) {
     console.log("Connecting to MongoDB:", dbURI);
-    if (NODE_ENV === "development") {
         if (!client) {
             client = new MongoClient(dbURI);
 
