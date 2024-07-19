@@ -21,8 +21,8 @@
         status: string;
     }
 
-    const clientId = import.meta.env.VITE_CLIENT_ID;
-    const clientSecret = import.meta.env.VITE_CLIENT_SECRET;
+    const clientId = process.env.CLIENT_ID;
+    const clientSecret = process.env.CLIENT_SECRET;
 
     let accessToken = "";
     let searchQuery = "";
