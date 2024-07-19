@@ -26,7 +26,7 @@ const adapter = new  MongodbAdapter(Session, User);
 export const lucia = new Lucia(adapter,{
     sessionCookie: {
         attributes: {
-            secure: false
+            secure: true
         }
     },
     getUserAttributes: (attributes) => {
