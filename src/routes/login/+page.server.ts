@@ -1,11 +1,10 @@
 import { lucia, verifyCode } from "$lib/server/auth";
 import { fail, redirect } from "@sveltejs/kit";
 import { generateId } from "lucia";
-import { getDb } from "$lib/server/db";
+import { db } from "$lib/server/db";
 
 import type { Actions, PageServerLoad } from "./$types";
 
-const db = getDb();
 
 export const load: PageServerLoad = async (event) => {
     if (event.locals.user) {
