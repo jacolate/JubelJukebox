@@ -31,6 +31,7 @@
     const showModal = writable(false);
     let selectedSong: Song | null = null;
     onMount(() => {
+        console.log("TOCKEN:", clientId, clientSecret, accessToken);
         fetch("https://accounts.spotify.com/api/token", {
             method: "POST",
             headers: {
@@ -48,6 +49,7 @@
     });
 
     const searchMusic = async (query: String) => {
+        console.log("TOCKEN:", clientId, clientSecret, accessToken);
         const response = await fetch(
             `https://api.spotify.com/v1/search?q=${query}&type=track&limit=10`,
             {
