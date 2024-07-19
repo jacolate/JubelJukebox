@@ -21,8 +21,8 @@
         status: string;
     }
 
-    const clientId = process.env.CLIENT_ID;
-    const clientSecret = process.env.CLIENT_SECRET;
+    const clientId = "9534cb7132d34b939581335cbdba2437";
+    const clientSecret = "9ef7933ec0564496a12e6fe37eea5a07";
 
     let accessToken = "";
     let searchQuery = "";
