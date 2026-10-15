@@ -33,6 +33,18 @@ docker compose cp app:/app/data/backup.db ./backup.db
 
 Using your own reverse proxy instead of Caddy: it has to terminate TLS and set `X-Forwarded-Proto`, `X-Forwarded-Host` and `X-Forwarded-For`. Without these headers the app rejects form logins as cross-site requests.
 
+## Spotify credentials
+
+The song search uses the [Spotify Web API](https://developer.spotify.com/documentation/web-api) with the [client credentials flow](https://developer.spotify.com/documentation/web-api/tutorials/client-credentials-flow). Guests don't need a Spotify account, and the credentials never leave the server.
+
+1. Log in to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) and click **Create app**.
+2. Enter a name and description and accept the terms. If the form asks for a redirect URI or the APIs you plan to use, choose **Web API** and enter any redirect URI (e.g. `https://localhost/callback`). The app never uses it.
+3. Open the app's **Settings**: copy the **Client ID** into `SPOTIFY_CLIENT_ID` and the **Client secret** (*View client secret*) into `SPOTIFY_CLIENT_SECRET`.
+
+If the secret was ever exposed, regenerate it with **Rotate** in the same place ([docs](https://developer.spotify.com/documentation/web-api/concepts/apps)) and update `.env`.
+
+Limits of new apps ([quota modes](https://developer.spotify.com/documentation/web-api/concepts/quota-modes)): apps run in *development mode*, where **the app owner needs Spotify Premium**, and rate limits are lower. When Spotify rejects requests, the search shows an error and the server logs the status code (e.g. `429`).
+
 ## Running on Kubernetes
 
 Generic Kustomize manifests live in `deploy/k8s` (Deployment, Service, PVC, Ingress):
@@ -69,7 +81,7 @@ All variables are validated at startup (`src/env.ts`). If one is missing or inva
 | `ENTRY_CODE` | Event code for guests (at least 6 characters, case-insensitive) |
 | `ADMIN_USERNAME` | DJ username |
 | `ADMIN_PASSWORD_HASH` | scrypt hash of the DJ password, create it with `npm run hash-password` |
-| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | Spotify app (client credentials flow), only used on the server |
+| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | Spotify app credentials, see [Spotify credentials](#spotify-credentials) |
 | `DATABASE_PATH` | SQLite file, default `data/jukebox.db` (`/app/data/jukebox.db` in the container) |
 | `DOMAIN`, `HTTP_PORT`, `HTTPS_PORT` | Only for `compose.yaml`: public domain for Caddy and host ports (default 80/443) |
 
