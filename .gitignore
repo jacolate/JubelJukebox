@@ -1,15 +1,16 @@
 .DS_Store
 .vscode
-node_modules
-.vscode
 .idea
+node_modules
 /build
 /.svelte-kit
 /package
 .env
 .env.*
 !.env.example
-.vercel
-.output
-vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Never commit real Kubernetes secrets – only *.example.yaml templates
+infra/**/*secret*.yaml
+infra/**/*credential*.yaml
+!infra/**/*.example.yaml

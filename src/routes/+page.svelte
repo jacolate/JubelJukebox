@@ -1,135 +1,59 @@
 <script lang="ts">
-    import { onMount } from "svelte";
-    import { writable } from "svelte/store";
-    import Alert from "$lib/components/Alert.svelte";
-    import { alert } from "$lib/stores/alert";
-    export let data;
-    $: username = data.username;
+    import Alert from "#lib/components/Alert.svelte";
+    import { showAlert } from "#lib/stores/alert.ts";
+    import type { Song } from "#lib/types.ts";
 
-    import type { ActionData } from "./$types";
+    let searchQuery = $state("");
+    let songs = $state<Song[]>([]);
+    let selectedSong = $state<Song | null>(null);
+    let confirmModal: HTMLDialogElement;
 
-    export let form: ActionData;
+    const searchMusic = async (query: string) => {
+        const q = query.trim();
+        if (!q) return;
+        try {
+            const response = await fetch(`/api/search?${new URLSearchParams({ q })}`);
+            if (!response.ok) throw new Error(`Search failed with status ${response.status}`);
+            songs = await response.json();
+        } catch (error) {
+            console.error("Error:", error);
+            showAlert(
+                "alert-error",
+                "Die Suche ist gerade nicht verfügbar. Bitte versuchen Sie es später erneut.",
+            );
+        }
+    };
 
-    interface Song {
-        name: string;
-        interprete: string;
-        url: string;
-    }
-
-    interface SongRequest {
-        song: Song;
-        user: string;
-        status: string;
-    }
-
-    const clientId = "***REMOVED***";
-    const clientSecret = "***REMOVED***";
-
-    let accessToken = "";
-    let searchQuery = "";
-
-
-    const songs = writable<Song[]>([]);
-    const showModal = writable(false);
-    let selectedSong: Song | null = null;
-    onMount(() => {
-        fetch("https://accounts.spotify.com/api/token", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`,
-        })
-            .then((response) => response.json())
-            .then((data) => {
-                accessToken = data.access_token;
-            })
-            .catch((error) => {
-                console.error("Error:", error);
-            });
-    });
-
-    const searchMusic = async (query: String) => {
-        const response = await fetch(
-            `https://api.spotify.com/v1/search?q=${query}&type=track&limit=10`,
-            {
-                method: "GET",
+    async function sendSongRequest(song: Song) {
+        try {
+            const response = await fetch("/api/request", {
+                method: "POST",
                 headers: {
-                    Authorization: `Bearer ${accessToken}`,
+                    "Content-Type": "application/json",
                 },
-            }
-        );
-        const data = await response.json();
-        songs.set(filterSongs(data));
-    };
-
-    function sendSongRequest(request: SongRequest) {
-        const url = "/api/request"; // Your backend endpoint URL
-
-        fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(request),
-        })
-            .then((response) => {
-                if (!response.ok) {
-                    throw new Error("Network response was not ok");
-                }
-                return response.json(); // or .text() if the response is not JSON
-            })
-            .then((data) => {
-                console.log("Success:", data);
-                alert.set({
-                    type: "alert-success",
-                    message: "Der Wunsch wurde erfolgreich eingereicht.",
-                    visible: true,
-                });
-                // Hide the alert after a few seconds
-                setTimeout(() => {
-                    alert.set({ type: "", message: "", visible: false });
-                }, 3000);
-            })
-            .catch((error) => {
-                console.error("Error:", error);
-                alert.set({
-                    type: "alert-error",
-                    message:
-                        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
-                    visible: true,
-                });
-                // Hide the alert after a few seconds
-                setTimeout(() => {
-                    alert.set({ type: "", message: "", visible: false });
-                }, 3000);
+                body: JSON.stringify({ song }),
             });
+            if (!response.ok) {
+                throw new Error(`Request failed with status ${response.status}`);
+            }
+            showAlert("alert-success", "Der Wunsch wurde erfolgreich eingereicht.");
+        } catch (error) {
+            console.error("Error:", error);
+            showAlert(
+                "alert-error",
+                "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
+            );
+        }
     }
-
-    const filterSongs = (data: any): Song[] => {
-        return data.tracks.items.map((item: any) => ({
-            name: item.name,
-            interprete: item.artists
-                .map((artist: any) => artist.name)
-                .join(", "),
-            url: item.external_urls.spotify,
-        }));
-    };
 
     function openModal(song: Song) {
         selectedSong = song;
-        confirm_modal.showModal();
+        confirmModal.showModal();
     }
 
     function handleConfirm() {
-        const request: SongRequest = {
-            song: selectedSong as Song,
-            user: username as string,
-            status: "PENDING",
-        };
-        console.log(request);
-        sendSongRequest(request);
-        songs.set([]);
+        if (selectedSong) sendSongRequest(selectedSong);
+        songs = [];
         selectedSong = null;
         searchQuery = "";
     }
@@ -137,13 +61,13 @@
 
 <svelte:head>
     <title>Hinzufügen</title>
-    <meta name="description" content="Svelte demo app" />
+    <meta name="description" content="Jukebox – Musikwünsche einreichen" />
 </svelte:head>
 
 <section class="flex flex-col h-screen">
     <Alert />
 
-    <dialog id="confirm_modal" class="modal">
+    <dialog id="confirm_modal" class="modal" bind:this={confirmModal}>
         <div class="modal-box">
             <form method="dialog">
                 <button
@@ -159,7 +83,7 @@
                     <button class="btn btn-error w-2/6">Nein</button>
                     <button
                         class="btn btn-success w-2/6"
-                        on:click={() => handleConfirm()}>Ja</button
+                        onclick={() => handleConfirm()}>Ja</button
                     >
                 </div>
             </form>
@@ -197,15 +121,16 @@
                     bind:value={searchQuery}
                     class="input input-bordered flex-grow p-2"
                     placeholder="Songtitel"
+                    onkeydown={(e) => e.key === "Enter" && searchMusic(searchQuery)}
                 />
                 <button
-                    on:click={() => searchMusic(searchQuery)}
+                    onclick={() => searchMusic(searchQuery)}
                     class="btn btn-primary">Suchen</button
                 >
             </label>
         </div>
 
-        {#if $songs.length > 0}
+        {#if songs.length > 0}
             <div class="mb-6">
                 <div class="overflow-x-auto">
                     <table class="table table-zebra w-full">
@@ -221,7 +146,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {#each $songs as song}
+                            {#each songs as song}
                                 <tr>
                                     <td class="text-xs sm:text-sm md:text-base"
                                         >{song.name}</td
@@ -232,7 +157,7 @@
                                     <td>
                                         <button
                                             class="btn btn-info btn-outline btn-sm text-xs sm:text-sm"
-                                            on:click={() => openModal(song)}
+                                            onclick={() => openModal(song)}
                                             >Wünschen</button
                                         >
                                     </td>

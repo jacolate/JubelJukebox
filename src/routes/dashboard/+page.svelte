@@ -1,146 +1,102 @@
 <script lang="ts">
-    import {writable} from "svelte/store";
-    import {onMount} from "svelte";
-    import { source } from 'sveltekit-sse'
-    import { derived } from 'svelte/store';
-  import type { json } from "@sveltejs/kit";
+    import { onMount } from "svelte";
+    import { normalizeSpotifyTrackUrl } from "#lib/spotifyUrl.ts";
+    import type { SongRequestDTO } from "#lib/types.ts";
 
-    interface Song {
-        name: string;
-        interprete: string;
-        url: string;
+    type SongRequest = SongRequestDTO;
+    type Status = SongRequest["status"];
+
+    let requests = $state<SongRequest[]>([]);
+    let sessionCreateModal: HTMLDialogElement;
+
+    const order: Record<Status, number> = { PENDING: 1, STASHED: 2, PLAYED: 3 };
+    const sortedRequests = $derived(
+        requests.slice().sort((a, b) => (order[a.status] ?? 99) - (order[b.status] ?? 99)),
+    );
+
+    function upsert(request: SongRequest) {
+        const index = requests.findIndex((req) => req._id === request._id);
+        if (index === -1) requests.push(request);
+        else requests[index] = request;
     }
 
-
-    type SongRequest = {
-        _id: string;
-        song: Song;
-        user: string;
-        status: string; 
+    function setStatus(id: string, status: Status) {
+        const request = requests.find((req) => req._id === id);
+        if (request) request.status = status;
     }
 
-    const requests = writable<SongRequest[]>([]);
+    function remove(id: string) {
+        requests = requests.filter((req) => req._id !== id);
+    }
 
     onMount(() => {
-        const url = '/api/request'; // Your backend endpoint URL
+        // The server sends the full list on every (re)connect, then live changes.
+        const events = new EventSource("/api/events");
+        const parse = (event: MessageEvent) => JSON.parse(event.data);
 
-        fetch(url, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.json(); // or .text() if the response is not JSON
-            })
-            .then(data => {
-                requests.set(data)
-                // Handle success (e.g., show a confirmation message)
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                // Handle errors (e.g., show an error message)
-            });
-
-    });
-
-
-    const connection = source('/api/newRequest');
-    const songRequest = connection.select('song-request-update').json(
-    function or({error, raw, previous}){
-      console.error(`Could not parse "${raw}" as json.`, error)
-      return previous  // This will be the new value of the store
-    }
-  )
-  $: if($songRequest){
-    requests.update(reqs => [...reqs, $songRequest])
-  }
-  
-  console.log($songRequest)
-
-
-    const sortedRequests = derived(requests, $requests => {
-        return $requests.slice().sort((a, b) => {
-            const order = { "PENDING": 1, "STASHED": 2, "PLAYED": 3 };
-            return order[a.status] - order[b.status];
+        events.addEventListener("init", (event) => (requests = parse(event)));
+        events.addEventListener("created", (event) => upsert(parse(event).request));
+        events.addEventListener("updated", (event) => {
+            const { id, status } = parse(event);
+            setStatus(id, status);
         });
+        events.addEventListener("deleted", (event) => remove(parse(event).id));
+        events.addEventListener("error", () => {
+            // EventSource reconnects by itself; a closed stream means the session is gone.
+            if (events.readyState === EventSource.CLOSED) window.location.href = "/admin";
+        });
+
+        return () => events.close();
     });
-
-
 
     async function deleteRequest(request: SongRequest) {
-        const url = `/api/request/${request._id}`;
-
         try {
-            const response = await fetch(url, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
+            const response = await fetch(`/api/request/${request._id}`, { method: "DELETE" });
+            if (!response.ok && response.status !== 404) {
+                throw new Error(`Request failed with status ${response.status}`);
             }
-
-            const data = await response.json();
-            console.log('Success:', data);
-
-            // Update the requests store
-            requests.update(reqs => reqs.filter(req => req._id !== request._id));
-
-            // Optional: Show a success message to the user
+            remove(request._id);
         } catch (error) {
-            console.error('Error:', error);
-            // Optional: Show an error message to the user
+            console.error("Error:", error);
         }
     }
 
-    async function changeRequest(request: SongRequest){
-        const url = `/api/request/${request._id}`;
-
+    async function changeStatus(request: SongRequest, status: Status) {
         try {
-            const response = await fetch(url, {
-                method: 'PUT',
+            const response = await fetch(`/api/request/${request._id}`, {
+                method: "PUT",
                 headers: {
-                    'Content-Type': 'application/json',
+                    "Content-Type": "application/json",
                 },
-                body: JSON.stringify(request)
+                body: JSON.stringify({ status }),
             });
-
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                throw new Error(`Request failed with status ${response.status}`);
             }
-
-            const data = await response.json();
-            console.log('Success:', data);
-
-            // Update the requests store
-            requests.update(reqs => reqs.map(req => req._id === request._id ? request : req));
-
+            setStatus(request._id, status);
         } catch (error) {
-            console.error('Error:', error);
+            console.error("Error:", error);
         }
     }
 
-    async function stashRequest(request: SongRequest){
-        request.status = 'STASHED';
-        changeRequest(request);
+    function stashRequest(request: SongRequest) {
+        changeStatus(request, "STASHED");
     }
 
-    async function playRequest(request: SongRequest){
-        request.status = 'PLAYED';
-        changeRequest(request);
+    function playRequest(request: SongRequest) {
+        changeStatus(request, "PLAYED");
     }
 
+    function openSong(request: SongRequest) {
+        // Only ever open real Spotify track links – never user-controlled URLs like javascript:
+        const url = normalizeSpotifyTrackUrl(request.song.url);
+        if (url) window.open(url, "_blank", "noopener,noreferrer");
+    }
 </script>
 
 <svelte:head>
     <title>Dashboard</title>
-    <meta name="description" content="Svelte demo app" />
+    <meta name="description" content="Jukebox – DJ-Dashboard" />
 </svelte:head>
 
 <section class="flex flex-col h-screen">
@@ -166,12 +122,12 @@
         </div>
         <button
             class="btn btn-primary mt-4"
-            onclick="session_create_modal.showModal()">Create session</button
+            onclick={() => sessionCreateModal.showModal()}>Create session</button
         >
     </div>
 
     <div class="flex flex-col justify-center">
-        {#each $sortedRequests as request}
+        {#each sortedRequests as request (request._id)}
         <div class="card flex shadow-xl m-5 mx-auto w-3/4"
         class:bg-base-200={request.status === "STASHED"}
              class:bg-base-300={request.status === "PLAYED"}>
@@ -190,22 +146,22 @@
                         {request.status}
                 </div>
 
-                <button on:click={() => window.open(request.song.url, '_blank')}>
+                <button aria-label="Auf Spotify öffnen" onclick={() => openSong(request)}>
                     <svg class="p-1" xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 496 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.-->
                         <path fill="#1db954" d="M248 8C111.1 8 0 119.1 0 256s111.1 248 248 248 248-111.1 248-248S384.9 8 248 8zm100.7 364.9c-4.2 0-6.8-1.3-10.7-3.6-62.4-37.6-135-39.2-206.7-24.5-3.9 1-9 2.6-11.9 2.6-9.7 0-15.8-7.7-15.8-15.8 0-10.3 6.1-15.2 13.6-16.8 81.9-18.1 165.6-16.5 237 26.2 6.1 3.9 9.7 7.4 9.7 16.5s-7.1 15.4-15.2 15.4zm26.9-65.6c-5.2 0-8.7-2.3-12.3-4.2-62.5-37-155.7-51.9-238.6-29.4-4.8 1.3-7.4 2.6-11.9 2.6-10.7 0-19.4-8.7-19.4-19.4s5.2-17.8 15.5-20.7c27.8-7.8 56.2-13.6 97.8-13.6 64.9 0 127.6 16.1 177 45.5 8.1 4.8 11.3 11 11.3 19.7-.1 10.8-8.5 19.5-19.4 19.5zm31-76.2c-5.2 0-8.4-1.3-12.9-3.9-71.2-42.5-198.5-52.7-280.9-29.7-3.6 1-8.1 2.6-12.9 2.6-13.2 0-23.3-10.3-23.3-23.6 0-13.6 8.4-21.3 17.4-23.9 35.2-10.3 74.6-15.2 117.5-15.2 73 0 149.5 15.2 205.4 47.8 7.8 4.5 12.9 10.7 12.9 22.6 0 13.6-11 23.3-23.2 23.3z"/>
                     </svg>
                 </button>
-                <button on:click={() => playRequest(request)}>
+                <button aria-label="Als gespielt markieren" onclick={() => playRequest(request)}>
                     <svg class="text-black bg-success dark:text-success dark:bg-transparent p-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="50" height="50" fill="none" viewBox="0 0 24 24">
                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M5 11.917 9.724 16.5 19 7.5"/>
                     </svg>
                                       </button>
-                <button on:click={() => stashRequest(request)}>
+                <button aria-label="Zurückstellen" onclick={() => stashRequest(request)}>
                     <svg class="light:text-black bg-warning dark:text-warning dark:bg-transparent p-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="50" height="50" fill="none" viewBox="0 0 24 24">
                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
                     </svg>
                                       </button>
-                <button on:click={() => deleteRequest(request)}>
+                <button aria-label="Löschen" onclick={() => deleteRequest(request)}>
                 <svg class="text-black bg-error dark:text-error dark:bg-transparent p-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="50" height="50" fill="none" viewBox="0 0 24 24">
                     <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M5 7h14m-9 3v8m4-8v8M10 3h4a1 1 0 0 1 1 1v3H9V4a1 1 0 0 1 1-1ZM6 7h12v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7Z"/>
                   </svg>
@@ -220,7 +176,7 @@
     <div
         class="flex flex-col h-5/6 justify-between self-center mt-10 w-11/12 md:w-5/12"
     >
-        <dialog id="session_create_modal" class="modal">
+        <dialog id="session_create_modal" class="modal" bind:this={sessionCreateModal}>
             <div class="modal-box">
             <h2 class="text-2xl font-bold">Create a new session</h2>
                 <form method="dialog">
@@ -271,12 +227,4 @@
   svg:hover {
     background-color:gainsboro;
   }
-
-  .gray {
-    background-color: #e7e4e4; /* Heller Grauton */
-}
-
-.dark-gray {
-    background-color: #cccccc; /* Dunklerer Grauton */
-}
 </style>

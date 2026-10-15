@@ -1,9 +1,7 @@
 <script lang="ts">
-    import "tailwindcss/tailwind.css";
-    import { onMount } from 'svelte';
-    import { goto } from '$app/navigation';
-    import {browser} from "$app/environment";
-    
+    import "../app.css";
+
+    let { children } = $props();
 </script>
 
-<slot />
+{@render children()}

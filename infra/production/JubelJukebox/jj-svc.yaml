@@ -6,7 +6,7 @@ spec:
   selector:
     app: jubeljukebox
   ports:
-    - name: https
+    - name: http
       protocol: TCP
-      port: 443
-      targetPort: 3000
+      port: 80
+      targetPort: http

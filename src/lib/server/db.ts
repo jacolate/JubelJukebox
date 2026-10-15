@@ -1,30 +1,22 @@
-import { MongoClient, Db } from 'mongodb';
-import { building } from '$app/environment';
+import { MongoClient, type Db } from 'mongodb';
+import { MONGODB_DB, MONGODB_URI } from '$app/env/private';
+import type { SessionDoc } from '#lib/server/session.ts';
+import type { SongRequestDoc } from '#lib/server/songRequests.ts';
 
-let client: MongoClient;
-let dbb: Db;
+let db: Db | undefined;
 
-const dbUrl = process.env.MONGODB_HOST || "localhost:27017";
-const dbUser = process.env.MONGODB_USERNAME || "admin";
-const dbPassword = process.env.MONGODB_PASSWORD || "admin";
-const NODE_ENV = process.env.NODE_ENV || "development";
+// The driver connects lazily on the first operation.
+function getDb(): Db {
+	db ??= new MongoClient(MONGODB_URI, { appName: 'jubeljukebox' }).db(MONGODB_DB);
+	return db;
+}
 
-const dbURI = NODE_ENV === "development"
-    ? `mongodb://localhost:27017`
-    : `mongodb://${dbUser}:${dbPassword}@${dbUrl}`;
-
-const connectToDatabase = async (): Promise<Db> => {
-    if (!building) {
-    console.log("Connecting to MongoDB:", dbURI);
-        if (!client) {
-            client = new MongoClient(dbURI);
-
-            await client.connect();
-            dbb = client.db("songRequests"); // Use your database name
-        }
-    }
-
-    return dbb;
+export const collections = {
+	sessions: () => getDb().collection<SessionDoc>('sessions'),
+	songRequests: () => getDb().collection<SongRequestDoc>('songRequests')
 };
 
-export const db = await connectToDatabase();
+export async function ensureIndexes() {
+	// MongoDB removes expired sessions automatically.
+	await collections.sessions().createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+}

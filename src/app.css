@@ -1,0 +1,111 @@
+@import 'tailwindcss';
+
+/*
+ * The app was designed with Tailwind 3 + daisyUI 4. The themes and overrides below
+ * reproduce that look on Tailwind 4 + daisyUI 5, so the UI stays visually unchanged.
+ */
+@plugin 'daisyui' {
+	themes: false;
+}
+
+@plugin 'daisyui/theme' {
+	name: 'light';
+	default: true;
+	color-scheme: light;
+	--color-primary: oklch(49.12% 0.3096 275.75);
+	--color-primary-content: oklch(89.824% 0.06192 275.75);
+	--color-secondary: oklch(69.71% 0.329 342.55);
+	--color-secondary-content: oklch(98.71% 0.0106 342.55);
+	--color-accent: oklch(76.76% 0.184 183.61);
+	--color-accent-content: oklch(15.352% 0.0368 183.61);
+	--color-neutral: oklch(32.1785% 0.02476 255.701624);
+	--color-neutral-content: oklch(89.4994% 0.011585 252.096176);
+	--color-base-100: oklch(100% 0 0);
+	--color-base-200: oklch(96.1151% 0 0);
+	--color-base-300: oklch(92.4169% 0.00108 197.137559);
+	--color-base-content: oklch(27.8078% 0.029596 256.847952);
+	--color-info: oklch(72.06% 0.191 231.6);
+	--color-info-content: oklch(0% 0 0);
+	--color-success: oklch(64.8% 0.15 160);
+	--color-success-content: oklch(0% 0 0);
+	--color-warning: oklch(84.71% 0.199 83.87);
+	--color-warning-content: oklch(0% 0 0);
+	--color-error: oklch(71.76% 0.221 22.18);
+	--color-error-content: oklch(0% 0 0);
+	--radius-selector: 1.9rem;
+	--radius-field: 0.5rem;
+	--radius-box: 1rem;
+	--size-selector: 0.2083rem;
+	--size-field: 0.3rem;
+	--border: 1px;
+	--depth: 0;
+	--noise: 0;
+}
+
+@plugin 'daisyui/theme' {
+	name: 'dark';
+	prefersdark: true;
+	color-scheme: dark;
+	--color-primary: oklch(65.69% 0.196 275.75);
+	--color-primary-content: oklch(13.138% 0.0392 275.75);
+	--color-secondary: oklch(74.8% 0.26 342.55);
+	--color-secondary-content: oklch(14.96% 0.052 342.55);
+	--color-accent: oklch(74.51% 0.167 183.61);
+	--color-accent-content: oklch(14.902% 0.0334 183.61);
+	--color-neutral: oklch(31.3815% 0.021108 254.139175);
+	--color-neutral-content: oklch(74.6477% 0.0216 264.435964);
+	--color-base-100: oklch(25.3267% 0.015896 252.417568);
+	--color-base-200: oklch(23.2607% 0.013807 253.100675);
+	--color-base-300: oklch(21.1484% 0.01165 254.087939);
+	--color-base-content: oklch(74.6477% 0.0216 264.435964);
+	--color-info: oklch(72.06% 0.191 231.6);
+	--color-info-content: oklch(0% 0 0);
+	--color-success: oklch(64.8% 0.15 160);
+	--color-success-content: oklch(0% 0 0);
+	--color-warning: oklch(84.71% 0.199 83.87);
+	--color-warning-content: oklch(0% 0 0);
+	--color-error: oklch(71.76% 0.221 22.18);
+	--color-error-content: oklch(0% 0 0);
+	--radius-selector: 1.9rem;
+	--radius-field: 0.5rem;
+	--radius-box: 1rem;
+	--size-selector: 0.2083rem;
+	--size-field: 0.3rem;
+	--border: 1px;
+	--depth: 0;
+	--noise: 0;
+}
+
+/* Tailwind 3 palette values for the colors the app uses (Tailwind 4 shifted them slightly). */
+@theme {
+	--color-orange-600: #ea580c;
+	--color-gray-700: #374151;
+	--color-gray-900: #111827;
+}
+
+/* daisyUI 4 component metrics. Placed in a daisyUI sub-layer so Tailwind utilities still win. */
+@layer utilities {
+	@layer daisyui.v4 {
+		.btn {
+			gap: 0.5rem;
+		}
+		.btn-sm {
+			--size: 2rem;
+			--fontsize: 0.875rem;
+		}
+		.input {
+			--font-size-min: 1rem;
+			padding-inline: 1rem;
+		}
+		.card-body {
+			--card-p: 2rem;
+			--card-fs: 1rem;
+			line-height: 1.5rem;
+		}
+		.alert {
+			padding: 1rem;
+			font-size: 1rem;
+			line-height: 1.5rem;
+		}
+	}
+}

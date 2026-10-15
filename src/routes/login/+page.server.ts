@@ -1,59 +1,38 @@
-import { lucia, verifyCode } from "$lib/server/auth";
-import { fail, redirect } from "@sveltejs/kit";
-import { generateId } from "lucia";
-import { db } from "$lib/server/db";
+import { ENTRY_CODE } from '$app/env/private';
+import { fail, redirect } from '@sveltejs/kit';
+import * as v from 'valibot';
+import { startSession } from '#lib/server/auth.ts';
+import { safeEqual } from '#lib/server/password.ts';
+import { limits } from '#lib/server/services.ts';
+import { Username } from '#lib/server/validation.ts';
+import type { Actions, PageServerLoad } from './$types';
 
-import type { Actions, PageServerLoad } from "./$types";
-
-
-export const load: PageServerLoad = async (event) => {
-    if (event.locals.user) {
-        return redirect(302, "/");
-    }
-    return {};
+export const load: PageServerLoad = ({ locals }) => {
+	if (locals.session) redirect(303, '/');
 };
 
+const normalizeCode = (code: string) => code.trim().toUpperCase();
+
 export const actions: Actions = {
-    default: async (event) => {
-        const formData = await event.request.formData();
-        const username = formData.get("username");
-        const code = formData.get("code");
-        console.log("HALLLLLLO", username, code);
+	default: async (event) => {
+		const ip = event.getClientAddress();
+		if (limits.guestLoginFailures.isBlocked(ip)) {
+			return fail(429, { message: 'Zu viele Versuche. Bitte später erneut versuchen.' });
+		}
 
-        console.log("VOR VALI");
+		const formData = await event.request.formData();
+		const username = v.safeParse(Username, formData.get('username'));
+		const code = formData.get('code');
 
-        if (!await verifyCode(code)) {
-            console.log("Invalid code");
-            return fail(400, {
-                message: "Invalid username"
-            });
-        }
+		if (typeof code !== 'string' || !safeEqual(normalizeCode(code), normalizeCode(ENTRY_CODE))) {
+			limits.guestLoginFailures.hit(ip);
+			return fail(400, { message: 'Ungültiger Code' });
+		}
+		if (!username.success) {
+			return fail(400, { message: 'Bitte einen Namen mit maximal 40 Zeichen angeben' });
+		}
 
-        console.log("Code: ", code);
-
-
-        const _id = generateId(15);
-
-        try {
-
-            const result = await db.collection("users").insertOne({
-                _id,
-                username,
-                code
-            });
-
-            const session = await lucia.createSession(_id, {});
-            const sessionCookie = lucia.createSessionCookie(session.id);
-            event.cookies.set(sessionCookie.name, sessionCookie.value, {
-                path: ".",
-                ...sessionCookie.attributes
-            });
-        } catch (e) {
-            return fail(500, {
-                message: "An unknown error occurred"
-            });
-        }
-        console.log("VOR REDIRECT");
-        return redirect(302, "/");
-    }
+		await startSession(event, 'guest', username.output);
+		redirect(303, '/');
+	}
 };

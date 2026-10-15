@@ -1,0 +1,14 @@
+# Runs only when the data volume is empty. For an existing database create the user once manually:
+#   kubectl -n jubeljukebox exec -it deploy/mongodb -- mongosh -u root -p --authenticationDatabase admin \
+#     --eval 'db.getSiblingDB("songRequests").createUser({user:"jubeljukebox",pwd:passwordPrompt(),roles:[{role:"readWrite",db:"songRequests"}]})'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongodb-init
+data:
+  create-app-user.js: |
+    db.getSiblingDB('songRequests').createUser({
+      user: 'jubeljukebox',
+      pwd: process.env.MONGO_APP_PASSWORD,
+      roles: [{ role: 'readWrite', db: 'songRequests' }]
+    });

@@ -1,10 +1,25 @@
-<script>
+<script lang="ts">
+    import { enhance } from "$app/forms";
+    import Alert from "#lib/components/Alert.svelte";
+    import { showAlert } from "#lib/stores/alert.ts";
+    import type { SubmitFunction } from "./$types";
+
+    const handleSubmit: SubmitFunction = () => {
+        return async ({ result, update }) => {
+            if (result.type === "failure") {
+                showAlert("alert-error", String(result.data?.message ?? "Anmeldung fehlgeschlagen"));
+            }
+            await update();
+        };
+    };
 </script>
 
 <svelte:head>
     <title>Home</title>
-    <meta name="description" content="Svelte demo app" />
+    <meta name="description" content="Jubel Jukebox – DJ-Anmeldung" />
 </svelte:head>
+
+<Alert />
 
 <section class="flex flex-col items-center justify-center h-screen space-y-20">
     <div class="flex flex-col items-center justify-center">
@@ -12,7 +27,7 @@
         <h1 class="uppercase font-bold text-5xl text-orange-600">Jukebox</h1>
     </div>
 
-    <div class="flex flex-col justify-center items-center gap-3">
+    <form method="post" use:enhance={handleSubmit} class="flex flex-col justify-center items-center gap-3">
         <label class="input input-bordered flex items-center gap-2">
             <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -23,7 +38,7 @@
                     d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12.735 14c.618 0 1.093-.561.872-1.139a6.002 6.002 0 0 0-11.215 0c-.22.578.254 1.139.872 1.139h9.47Z"
                 /></svg
             >
-            <input type="text" class="grow" placeholder="Nutzername" />
+            <input type="text" name="username" class="grow" placeholder="Nutzername" autocomplete="username" required />
         </label>
 
         <label class="input input-bordered flex items-center gap-2">
@@ -38,9 +53,9 @@
                     clip-rule="evenodd"
                 /></svg
             >
-            <input type="password" class="grow" placeholder="Passwort" />
+            <input type="password" name="password" class="grow" placeholder="Passwort" autocomplete="current-password" required />
         </label>
 
         <button class="btn btn-primary mt-4">Anmelden</button>
-    </div>
+    </form>
 </section>

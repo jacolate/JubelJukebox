@@ -1,27 +1,6 @@
-// mongo-init.js
-
-// Define the schema for the 'users' collection
-db.createCollection("users", {
-    validator: {
-        $jsonSchema: {
-            bsonType: "object",
-            required: ["name", "email"],
-            properties: {
-                name: {
-                    bsonType: "string",
-                    description: "must be a string and is required"
-                },
-                email: {
-                    bsonType: "string",
-                    pattern: "^\\S+@\\S+$",
-                    description: "must be a string and match the regular expression pattern"
-                }
-            }
-        }
-    }
+// Creates the least-privileged app user, same as in production (infra/production/mongodb/mongodb-init.yaml).
+db.getSiblingDB('songRequests').createUser({
+	user: 'jubeljukebox',
+	pwd: process.env.MONGO_APP_PASSWORD,
+	roles: [{ role: 'readWrite', db: 'songRequests' }]
 });
-
-// You can define more collections and their schemas similarly
-// db.createCollection("another_collection", { ... });
-
-print("Collections created successfully");

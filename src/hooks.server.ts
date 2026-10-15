@@ -1,31 +1,47 @@
-import { lucia } from "$lib/server/auth";
-import type { Handle } from "@sveltejs/kit";
+import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks';
+import { clearSessionCookie, SESSION_COOKIE, setSessionCookie } from '#lib/server/auth.ts';
+import { collections, ensureIndexes } from '#lib/server/db.ts';
+import { validateSessionToken } from '#lib/server/session.ts';
+
+export const init: ServerInit = async () => {
+	await ensureIndexes();
+};
+
+const SECURITY_HEADERS: Record<string, string> = {
+	'X-Content-Type-Options': 'nosniff',
+	'Referrer-Policy': 'strict-origin-when-cross-origin',
+	'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+	'Cross-Origin-Opener-Policy': 'same-origin'
+};
 
 export const handle: Handle = async ({ event, resolve }) => {
-        const sessionId = event.cookies.get(lucia.sessionCookieName);
-        if (!sessionId) {
-            event.locals.user = null;
-            event.locals.session = null;
-            return resolve(event);
-        }
+	event.locals.session = null;
 
-        const { session, user } = await lucia.validateSession(sessionId);
-        console.log("SESSION", session);
-        if (session && session.fresh) {
-            const sessionCookie = lucia.createSessionCookie(session.id);
-            event.cookies.set(sessionCookie.name, sessionCookie.value, {
-                path: ".",
-                ...sessionCookie.attributes
-            });
-        }
-        if (!session) {
-            const sessionCookie = lucia.createBlankSessionCookie();
-            event.cookies.set(sessionCookie.name, sessionCookie.value, {
-                path: ".",
-                ...sessionCookie.attributes
-            });
-        }
-        event.locals.user = user;
-        event.locals.session = session;
-    return resolve(event);
+	const token = event.cookies.get(SESSION_COOKIE);
+	if (token) {
+		const result = token.length <= 64 ? await validateSessionToken(collections.sessions(), token) : null;
+		if (result) {
+			event.locals.session = result.session;
+			if (result.renewed) setSessionCookie(event.cookies, token, result.session.expiresAt);
+		} else {
+			clearSessionCookie(event.cookies);
+		}
+	}
+
+	const response = await resolve(event);
+	for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+		if (!response.headers.has(name)) response.headers.set(name, value);
+	}
+	if (event.url.protocol === 'https:') {
+		response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+	}
+	if (event.url.pathname.startsWith('/api/')) response.headers.set('Cache-Control', 'no-store');
+	return response;
+};
+
+export const handleError: HandleServerError = ({ kind, error, event }) => {
+	// Only unexpected errors are logged; the client always gets a generic message for them.
+	if (kind === 'unknown') {
+		console.error(`Unexpected error in ${event.request.method} ${event.route.id ?? event.url.pathname}:`, error);
+	}
 };

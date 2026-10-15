@@ -1,16 +1,25 @@
 <script lang="ts">
 	import { enhance } from "$app/forms";
+	import Alert from "#lib/components/Alert.svelte";
+	import { showAlert } from "#lib/stores/alert.ts";
+	import type { SubmitFunction } from "./$types";
 
-	import type { ActionData } from "./$types";
-
-	export let form: ActionData;
-
+	const handleSubmit: SubmitFunction = () => {
+		return async ({ result, update }) => {
+			if (result.type === "failure") {
+				showAlert("alert-error", String(result.data?.message ?? "Anmeldung fehlgeschlagen"));
+			}
+			await update({ reset: false });
+		};
+	};
 </script>
 
 <svelte:head>
     <title>Home</title>
-    <meta name="description" content="Svelte demo app" />
+    <meta name="description" content="Jubel Jukebox – Anmeldung" />
 </svelte:head>
+
+<Alert />
 
 <section class="flex flex-col items-center justify-center h-screen space-y-20">
     <div class="flex flex-col items-center justify-center">
@@ -18,7 +27,7 @@
         <h1 class="uppercase font-bold text-5xl text-orange-600">Jukebox</h1>
     </div>
 
-    <form method="post" use:enhance>
+    <form method="post" use:enhance={handleSubmit}>
         <div class="flex flex-col justify-center items-center gap-5">
             <label
                 for="name"
@@ -64,7 +73,7 @@
                     type="text"
                     class="grow"
                     placeholder="Code"
-                    oninput="this.value = this.value.toUpperCase()"
+                    oninput={(e) => (e.currentTarget.value = e.currentTarget.value.toUpperCase())}
                     required
                 />
             </label>

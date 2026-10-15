@@ -1,15 +1,8 @@
-// See https://kit.svelte.dev/docs/types#app
-// for information about these interfaces
+// See https://svelte.dev/docs/kit/types#app
 declare global {
 	namespace App {
-		// interface Error {}
-		// interface Locals {}
-		// interface PageData {}
-		// interface PageState {}
-		// interface Platform {}
-        interface Locals {
-			user: import("lucia").User | null;
-			session: import("lucia").Session | null;
+		interface Locals {
+			session: import('#lib/server/session.ts').Session | null;
 		}
 	}
 }

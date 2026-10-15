@@ -1,0 +1,17 @@
+# Only the app may connect to MongoDB.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mongodb-app-only
+spec:
+  podSelector:
+    matchLabels:
+      app: mongodb
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: jubeljukebox
+      ports:
+        - port: 27017

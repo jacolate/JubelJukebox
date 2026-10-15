@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: jubeljukebox-deployment
 spec:
+  # Must stay at 1: live updates and rate limits are kept in memory.
   replicas: 1
   selector:
     matchLabels:
@@ -12,47 +13,47 @@ spec:
       labels:
         app: jubeljukebox
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: jubeljukebox
+          # Pin to a commit tag (sha-<short sha>) produced by CI instead of a moving branch tag.
           image: ghcr.io/jacolate/jubeljukebox:main
           imagePullPolicy: Always
           ports:
-            - containerPort: 3000
-          env:
-            - name: MONGODB_HOST
-              valueFrom:
-                configMapKeyRef:
-                  name: mongodb-config
-                  key: MONGODB_HOST
-            - name: NODE_ENV
-              valueFrom:
-                configMapKeyRef:
-                  name: jubeljukebox-config
-                  key: NODE_ENV
-            - name: VITE_SESSION_CODE
-              valueFrom:
-                configMapKeyRef:
-                  name: jubeljukebox-config
-                  key: ENTRY_CODE
-            - name: MONGODB_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: mongodb-secret
-                  key: mongo-root-username
-            - name: MONGODB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: mongodb-secret
-                  key: mongo-root-password
-            - name: CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: jj-api-secret
-                  key: CLIENT_ID
-            - name: CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: jj-api-secret
-                  key: CLIENT_SECRET
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: jubeljukebox-config
+            - secretRef:
+                name: jj-app-secret
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 384Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
       imagePullSecrets:
         - name: ghcr-credentials
