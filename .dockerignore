@@ -5,10 +5,13 @@
 node_modules
 build
 .svelte-kit
+data
 .env
 .env.*
-infra
+deploy
 scripts
 Dockerfile*
+compose*.yaml
+Caddyfile
 *.md
 **/*.test.ts

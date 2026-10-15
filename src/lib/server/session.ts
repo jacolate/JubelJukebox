@@ -1,21 +1,21 @@
 import { createHash, randomBytes } from 'node:crypto';
-import type { Collection } from 'mongodb';
+import type { Database } from '#lib/server/sqlite.ts';
 
 export type Role = 'guest' | 'admin';
 
-export interface SessionDoc {
+export interface Session {
 	/** SHA-256 of the session token – the token itself is never stored. */
-	_id: string;
+	id: string;
 	role: Role;
 	username: string;
 	expiresAt: Date;
 }
 
-export interface Session {
+interface SessionRow {
 	id: string;
 	role: Role;
 	username: string;
-	expiresAt: Date;
+	expires_at: number;
 }
 
 const HOUR = 60 * 60 * 1000;
@@ -33,55 +33,60 @@ export function sessionIdFromToken(token: string): string {
 	return createHash('sha256').update(token).digest('hex');
 }
 
-function toSession(doc: SessionDoc): Session {
-	return { id: doc._id, role: doc.role, username: doc.username, expiresAt: doc.expiresAt };
-}
-
-export async function createSession(
-	sessions: Collection<SessionDoc>,
-	token: string,
-	role: Role,
-	username: string,
-	now = Date.now()
-): Promise<Session> {
-	const doc: SessionDoc = {
-		_id: sessionIdFromToken(token),
+export function createSession(db: Database, token: string, role: Role, username: string, now = Date.now()): Session {
+	const session: Session = {
+		id: sessionIdFromToken(token),
 		role,
 		username,
 		expiresAt: new Date(now + SESSION_LIFETIME[role])
 	};
-	await sessions.insertOne(doc);
-	return toSession(doc);
+	db.prepare('INSERT INTO sessions (id, role, username, expires_at) VALUES (?, ?, ?, ?)').run(
+		session.id,
+		role,
+		username,
+		session.expiresAt.getTime()
+	);
+	return session;
 }
 
 /**
  * Looks up the session for a token. Expired sessions are deleted.
  * Sessions past half their lifetime are extended (`renewed: true`), so the cookie must be re-set.
  */
-export async function validateSessionToken(
-	sessions: Collection<SessionDoc>,
+export function validateSessionToken(
+	db: Database,
 	token: string,
 	now = Date.now()
-): Promise<{ session: Session; renewed: boolean } | null> {
+): { session: Session; renewed: boolean } | null {
 	const id = sessionIdFromToken(token);
-	const doc = await sessions.findOne({ _id: id });
-	if (!doc) return null;
+	const row = db.prepare('SELECT id, role, username, expires_at FROM sessions WHERE id = ?').get(id) as
+		| SessionRow
+		| undefined;
+	if (!row) return null;
 
-	if (doc.expiresAt.getTime() <= now) {
-		await sessions.deleteOne({ _id: id });
+	if (row.expires_at <= now) {
+		invalidateSession(db, id);
 		return null;
 	}
 
-	const lifetime = SESSION_LIFETIME[doc.role];
-	if (doc.expiresAt.getTime() - now < lifetime / 2) {
-		doc.expiresAt = new Date(now + lifetime);
-		await sessions.updateOne({ _id: id }, { $set: { expiresAt: doc.expiresAt } });
-		return { session: toSession(doc), renewed: true };
+	const session: Session = { id, role: row.role, username: row.username, expiresAt: new Date(row.expires_at) };
+	const lifetime = SESSION_LIFETIME[row.role];
+	if (row.expires_at - now < lifetime / 2) {
+		session.expiresAt = new Date(now + lifetime);
+		db.prepare('UPDATE sessions SET expires_at = ? WHERE id = ?').run(session.expiresAt.getTime(), id);
+		return { session, renewed: true };
 	}
-
-	return { session: toSession(doc), renewed: false };
+	return { session, renewed: false };
 }
 
-export async function invalidateSession(sessions: Collection<SessionDoc>, id: string) {
-	await sessions.deleteOne({ _id: id });
+export function isSessionActive(db: Database, id: string, now = Date.now()): boolean {
+	return !!db.prepare('SELECT 1 FROM sessions WHERE id = ? AND expires_at > ?').get(id, now);
+}
+
+export function invalidateSession(db: Database, id: string) {
+	db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
+}
+
+export function deleteExpiredSessions(db: Database, now = Date.now()) {
+	db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now);
 }

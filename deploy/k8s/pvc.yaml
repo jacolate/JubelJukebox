@@ -1,0 +1,10 @@
+# Holds the SQLite database. Uses the cluster's default StorageClass – set storageClassName if needed.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jubeljukebox-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi

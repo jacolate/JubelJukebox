@@ -6,7 +6,7 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async (event) => {
 	apiRequireAdmin(event);
-	return Response.json(await songRequests().list());
+	return Response.json(songRequests().list());
 };
 
 export const POST: RequestHandler = async (event) => {
@@ -16,6 +16,6 @@ export const POST: RequestHandler = async (event) => {
 	if (!limit.allowed) tooManyRequests(limit.retryAfterSeconds);
 
 	const input = await readJson(event.request, SongRequestInput);
-	const request = await songRequests().create(input, session.username);
-	return Response.json({ message: 'Song request received successfully', id: request._id }, { status: 201 });
+	const request = songRequests().create(input, session.username);
+	return Response.json({ message: 'Song request received successfully', id: request.id }, { status: 201 });
 };

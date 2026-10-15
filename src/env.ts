@@ -18,15 +18,9 @@ function required(check?: (value: string) => string | void) {
 }
 
 export const variables = defineEnvVars({
-	MONGODB_URI: {
-		description: 'MongoDB connection string, e.g. mongodb://user:pass@host:27017/?authSource=songRequests',
-		schema: required((value) => {
-			if (!/^mongodb(\+srv)?:\/\//.test(value)) return 'must start with mongodb:// or mongodb+srv://';
-		})
-	},
-	MONGODB_DB: {
-		description: 'Database name',
-		schema: (value) => value || 'songRequests'
+	DATABASE_PATH: {
+		description: 'Path of the SQLite database file (created if missing)',
+		schema: (value) => value || 'data/jukebox.db'
 	},
 	ENTRY_CODE: {
 		description: 'Code that guests enter to join the event (case-insensitive)',
@@ -41,7 +35,7 @@ export const variables = defineEnvVars({
 	ADMIN_PASSWORD_HASH: {
 		description: 'scrypt hash of the DJ password, generate with `npm run hash-password`',
 		schema: required((value) => {
-			if (!value.startsWith('scrypt$')) return 'must be generated with `npm run hash-password`';
+			if (!/^scrypt:\d+:\d+:\d+:[\w-]+:[\w-]+$/.test(value)) return 'must be generated with `npm run hash-password`';
 		})
 	},
 	SPOTIFY_CLIENT_ID: {

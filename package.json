@@ -15,7 +15,6 @@
 		"hash-password": "node scripts/hash-password.ts"
 	},
 	"dependencies": {
-		"mongodb": "^7.7.0",
 		"valibot": "^1.5.0"
 	},
 	"devDependencies": {
@@ -25,7 +24,6 @@
 		"@tailwindcss/vite": "^4.3.3",
 		"@types/node": "^24.0.0",
 		"daisyui": "^5.7.50",
-		"mongodb-memory-server": "^11.3.0",
 		"svelte": "^5.57.2",
 		"svelte-check": "^4.7.6",
 		"tailwindcss": "^4.3.3",

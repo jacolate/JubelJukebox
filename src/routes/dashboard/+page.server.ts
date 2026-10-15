@@ -7,8 +7,8 @@ export const load: PageServerLoad = (event) => {
 };
 
 export const actions: Actions = {
-	logout: async (event) => {
-		await endSession(event);
+	logout: (event) => {
+		endSession(event);
 		redirect(303, '/admin');
 	}
 };

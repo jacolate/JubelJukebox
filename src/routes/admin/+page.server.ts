@@ -31,7 +31,7 @@ export const actions: Actions = {
 		}
 
 		limits.adminLoginFailures.reset(ip);
-		await startSession(event, 'admin', ADMIN_USERNAME);
+		startSession(event, 'admin', ADMIN_USERNAME);
 		redirect(303, '/dashboard');
 	}
 };

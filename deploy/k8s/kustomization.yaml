@@ -1,0 +1,44 @@
+# Generic Kubernetes deployment: kubectl apply -k deploy/k8s
+#
+# 1. cp secret.env.example secret.env  and fill in the values (secret.env is gitignored)
+# 2. Adjust the values marked "CHANGE" below: namespace, image tag, domain
+# 3. kubectl apply -k deploy/k8s
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: jubeljukebox # CHANGE
+
+resources:
+  - namespace.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: jubeljukebox
+    includeSelectors: true
+
+images:
+  - name: jubeljukebox
+    newName: ghcr.io/jacolate/jubeljukebox # CHANGE
+    newTag: main # CHANGE: better pin a commit tag (sha-…) built by CI
+
+secretGenerator:
+  - name: jubeljukebox-secret
+    envs:
+      - secret.env
+
+patches:
+  # CHANGE: your domain (used for the ingress rule and the TLS certificate)
+  - target:
+      kind: Ingress
+      name: jubeljukebox
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: jukebox.example.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: jukebox.example.com

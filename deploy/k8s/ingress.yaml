@@ -1,0 +1,26 @@
+# Works with any ingress controller. The app streams server-sent events and sends
+# "X-Accel-Buffering: no" plus a heartbeat every 25 s, so no controller-specific annotations are needed.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jubeljukebox
+  annotations:
+    # Optional, with cert-manager: issue the TLS certificate automatically
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  # ingressClassName: nginx   # set if your cluster has no default IngressClass
+  rules:
+    - host: jukebox.example.com # set via kustomization.yaml
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jubeljukebox
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - jukebox.example.com # set via kustomization.yaml
+      secretName: jubeljukebox-tls

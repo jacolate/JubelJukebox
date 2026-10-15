@@ -1,5 +1,5 @@
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET } from '$app/env/private';
-import { collections } from '#lib/server/db.ts';
+import { getDb } from '#lib/server/db.ts';
 import { publish } from '#lib/server/pubsub.ts';
 import { RateLimiter } from '#lib/server/rateLimit.ts';
 import { createSongRequestStore } from '#lib/server/songRequests.ts';
@@ -14,7 +14,7 @@ export const spotify = createSpotifyClient({
 
 let store: ReturnType<typeof createSongRequestStore> | undefined;
 export function songRequests() {
-	store ??= createSongRequestStore(collections.songRequests(), publish);
+	store ??= createSongRequestStore(getDb(), publish);
 	return store;
 }
 

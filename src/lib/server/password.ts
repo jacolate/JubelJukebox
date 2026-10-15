@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from 'node:crypto';
 
-// Format: scrypt$<N>$<r>$<p>$<salt base64url>$<hash base64url>
+// Format: scrypt:<N>:<r>:<p>:<salt base64url>:<hash base64url>
+// No `$` on purpose – it would be expanded as a variable by shells, Docker Compose and .env loaders.
 const DEFAULT_PARAMS = { N: 2 ** 15, r: 8, p: 1 };
 const KEY_LENGTH = 32;
 
@@ -19,11 +20,11 @@ function maxmem({ N = 0, r = 0 }: ScryptOptions) {
 export async function hashPassword(password: string, params = DEFAULT_PARAMS): Promise<string> {
 	const salt = randomBytes(16);
 	const key = await deriveKey(password, salt, { ...params, maxmem: maxmem(params) });
-	return ['scrypt', params.N, params.r, params.p, salt.toString('base64url'), key.toString('base64url')].join('$');
+	return ['scrypt', params.N, params.r, params.p, salt.toString('base64url'), key.toString('base64url')].join(':');
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
-	const parts = stored.split('$');
+	const parts = stored.split(':');
 	if (parts.length !== 6 || parts[0] !== 'scrypt') return false;
 	const [N, r, p] = parts.slice(1, 4).map(Number);
 	if (![N, r, p].every(Number.isSafeInteger)) return false;

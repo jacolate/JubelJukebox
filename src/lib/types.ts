@@ -5,7 +5,7 @@ export interface Song {
 }
 
 export interface SongRequestDTO {
-	_id: string;
+	id: string;
 	song: Song;
 	user: string;
 	status: 'PENDING' | 'STASHED' | 'PLAYED';

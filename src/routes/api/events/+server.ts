@@ -1,6 +1,7 @@
 import { apiRequireAdmin } from '#lib/server/auth.ts';
-import { collections } from '#lib/server/db.ts';
+import { getDb } from '#lib/server/db.ts';
 import { subscribe, type SongRequestEvent } from '#lib/server/pubsub.ts';
+import { isSessionActive } from '#lib/server/session.ts';
 import { songRequests } from '#lib/server/services.ts';
 import type { RequestHandler } from './$types';
 
@@ -16,7 +17,7 @@ export const GET: RequestHandler = async (event) => {
 	let cleanup = () => {};
 
 	const stream = new ReadableStream<Uint8Array>({
-		async start(controller) {
+		start(controller) {
 			let closed = false;
 			const send = (chunk: string) => {
 				if (!closed) controller.enqueue(encoder.encode(chunk));
@@ -31,13 +32,9 @@ export const GET: RequestHandler = async (event) => {
 				else buffered.push(change);
 			});
 
-			const heartbeat = setInterval(async () => {
+			const heartbeat = setInterval(() => {
 				// Close the stream once the admin session has ended (logout or expiry).
-				const stillValid = await collections
-					.sessions()
-					.countDocuments({ _id: session.id, expiresAt: { $gt: new Date() } }, { limit: 1 })
-					.catch(() => 1);
-				if (!stillValid) return close();
+				if (!isSessionActive(getDb(), session.id)) return close();
 				send(': ping\n\n');
 			}, HEARTBEAT_MS);
 
@@ -56,7 +53,7 @@ export const GET: RequestHandler = async (event) => {
 			event.request.signal.addEventListener('abort', close);
 
 			try {
-				sendEvent('init', await songRequests().list());
+				sendEvent('init', songRequests().list());
 				for (const change of buffered) sendEvent(change.type, change);
 				live = true;
 			} catch (err) {

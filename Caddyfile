@@ -1,0 +1,5 @@
+{$DOMAIN} {
+	encode zstd gzip
+	# Caddy sets X-Forwarded-For/-Proto/-Host and streams server-sent events without buffering.
+	reverse_proxy app:3000
+}

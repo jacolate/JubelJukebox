@@ -1,6 +1,6 @@
 import type { Cookies, RequestEvent } from '@sveltejs/kit';
 import { error, redirect } from '@sveltejs/kit';
-import { collections } from '#lib/server/db.ts';
+import { getDb } from '#lib/server/db.ts';
 import {
 	createSession,
 	generateSessionToken,
@@ -20,17 +20,17 @@ export function clearSessionCookie(cookies: Cookies) {
 	cookies.delete(SESSION_COOKIE, { path: '/' });
 }
 
-export async function startSession(event: RequestEvent, role: Role, username: string) {
+export function startSession(event: RequestEvent, role: Role, username: string) {
 	// Replace any existing session instead of keeping it alive alongside the new one.
-	if (event.locals.session) await invalidateSession(collections.sessions(), event.locals.session.id);
+	if (event.locals.session) invalidateSession(getDb(), event.locals.session.id);
 	const token = generateSessionToken();
-	const session = await createSession(collections.sessions(), token, role, username);
+	const session = createSession(getDb(), token, role, username);
 	setSessionCookie(event.cookies, token, session.expiresAt);
 	event.locals.session = session;
 }
 
-export async function endSession(event: RequestEvent) {
-	if (event.locals.session) await invalidateSession(collections.sessions(), event.locals.session.id);
+export function endSession(event: RequestEvent) {
+	if (event.locals.session) invalidateSession(getDb(), event.locals.session.id);
 	clearSessionCookie(event.cookies);
 	event.locals.session = null;
 }

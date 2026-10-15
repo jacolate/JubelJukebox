@@ -4,7 +4,7 @@ import { hashPassword, safeEqual, verifyPassword } from './password.ts';
 describe('password hashing', () => {
 	it('verifies the correct password and rejects others', async () => {
 		const hash = await hashPassword('correct horse battery');
-		expect(hash).toMatch(/^scrypt\$32768\$8\$1\$/);
+		expect(hash).toMatch(/^scrypt:32768:8:1:[\w-]+:[\w-]+$/);
 		expect(await verifyPassword('correct horse battery', hash)).toBe(true);
 		expect(await verifyPassword('correct horse batterY', hash)).toBe(false);
 		expect(await verifyPassword('', hash)).toBe(false);
@@ -16,7 +16,7 @@ describe('password hashing', () => {
 
 	it('rejects malformed hashes', async () => {
 		expect(await verifyPassword('x', 'plain-text')).toBe(false);
-		expect(await verifyPassword('x', 'scrypt$a$b$c$d$e')).toBe(false);
+		expect(await verifyPassword('x', 'scrypt:a:b:c:d:e')).toBe(false);
 	});
 });
 

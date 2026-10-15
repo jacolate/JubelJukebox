@@ -7,7 +7,7 @@ export type SongRequestEvent =
 	| { type: 'updated'; id: string; status: Status }
 	| { type: 'deleted'; id: string };
 
-// In-process event bus: works with a single replica. Multiple replicas would need e.g. MongoDB change streams.
+// In-process event bus: works because the app runs as a single instance (see README).
 const emitter = new EventEmitter();
 emitter.setMaxListeners(1000);
 

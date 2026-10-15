@@ -1,0 +1,42 @@
+# Production setup: DOMAIN=jukebox.example.com docker compose up -d
+# Caddy obtains a Let's Encrypt certificate for DOMAIN automatically (ports 80/443 must be reachable).
+# For a local test use DOMAIN=localhost (Caddy then uses its own local certificate authority).
+services:
+  app:
+    build: .
+    # Alternatively use the image published by CI instead of building locally:
+    # image: ghcr.io/jacolate/jubeljukebox:main
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_PATH: /app/data/jukebox.db
+    volumes:
+      - app-data:/app/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    # Not published: only reachable through Caddy.
+    expose: ["3000"]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [app]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN, e.g. DOMAIN=jukebox.example.com}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+
+volumes:
+  app-data:
+  caddy-data:
+  caddy-config:

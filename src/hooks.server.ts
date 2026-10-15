@@ -1,10 +1,12 @@
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks';
 import { clearSessionCookie, SESSION_COOKIE, setSessionCookie } from '#lib/server/auth.ts';
-import { collections, ensureIndexes } from '#lib/server/db.ts';
-import { validateSessionToken } from '#lib/server/session.ts';
+import { getDb } from '#lib/server/db.ts';
+import { deleteExpiredSessions, validateSessionToken } from '#lib/server/session.ts';
 
-export const init: ServerInit = async () => {
-	await ensureIndexes();
+export const init: ServerInit = () => {
+	// Opens the database and runs migrations, so a broken DATABASE_PATH fails at startup.
+	deleteExpiredSessions(getDb());
+	setInterval(() => deleteExpiredSessions(getDb()), 60 * 60 * 1000).unref();
 };
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -19,7 +21,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	const token = event.cookies.get(SESSION_COOKIE);
 	if (token) {
-		const result = token.length <= 64 ? await validateSessionToken(collections.sessions(), token) : null;
+		const result = token.length <= 64 ? validateSessionToken(getDb(), token) : null;
 		if (result) {
 			event.locals.session = result.session;
 			if (result.renewed) setSessionCookie(event.cookies, token, result.session.expiresAt);

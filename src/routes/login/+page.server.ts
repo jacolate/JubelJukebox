@@ -32,7 +32,7 @@ export const actions: Actions = {
 			return fail(400, { message: 'Bitte einen Namen mit maximal 40 Zeichen angeben' });
 		}
 
-		await startSession(event, 'guest', username.output);
+		startSession(event, 'guest', username.output);
 		redirect(303, '/');
 	}
 };

@@ -1,63 +1,63 @@
-import { ObjectId, type Collection } from 'mongodb';
+import { randomUUID } from 'node:crypto';
 import type { SongRequestDTO } from '#lib/types.ts';
 import type { SongRequestEvent } from '#lib/server/pubsub.ts';
+import type { Database } from '#lib/server/sqlite.ts';
 import type { SongRequestInput, Status } from '#lib/server/validation.ts';
 
-export interface SongRequestDoc {
-	_id: ObjectId;
-	song: SongRequestInput['song'];
-	user: string;
+interface SongRequestRow {
+	id: string;
+	name: string;
+	interprete: string;
+	url: string;
+	requested_by: string;
 	status: Status;
-	createdAt: Date;
+	created_at: number;
 }
 
-function toDTO(doc: SongRequestDoc): SongRequestDTO {
+function toDTO(row: SongRequestRow): SongRequestDTO {
 	return {
-		_id: doc._id.toHexString(),
-		song: { name: doc.song.name, interprete: doc.song.interprete, url: doc.song.url },
-		user: doc.user,
-		status: doc.status,
-		createdAt: (doc.createdAt ?? doc._id.getTimestamp()).toISOString()
+		id: row.id,
+		song: { name: row.name, interprete: row.interprete, url: row.url },
+		user: row.requested_by,
+		status: row.status,
+		createdAt: new Date(row.created_at).toISOString()
 	};
 }
 
-export function createSongRequestStore(
-	collection: Collection<SongRequestDoc>,
-	publish: (event: SongRequestEvent) => void
-) {
+export function createSongRequestStore(db: Database, publish: (event: SongRequestEvent) => void) {
+	const statements = {
+		list: db.prepare('SELECT * FROM song_requests ORDER BY created_at, rowid'),
+		insert: db.prepare(
+			`INSERT INTO song_requests (id, name, interprete, url, requested_by, status, created_at)
+			 VALUES (?, ?, ?, ?, ?, 'PENDING', ?)
+			 RETURNING *`
+		),
+		updateStatus: db.prepare('UPDATE song_requests SET status = ? WHERE id = ?'),
+		delete: db.prepare('DELETE FROM song_requests WHERE id = ?')
+	};
+
 	return {
-		async list(): Promise<SongRequestDTO[]> {
-			const docs = await collection.find({}).sort({ _id: 1 }).toArray();
-			return docs.map(toDTO);
+		list(): SongRequestDTO[] {
+			return (statements.list.all() as unknown as SongRequestRow[]).map(toDTO);
 		},
 
-		async create(input: SongRequestInput, user: string): Promise<SongRequestDTO> {
-			const doc: SongRequestDoc = {
-				_id: new ObjectId(),
-				song: input.song,
-				user,
-				status: 'PENDING',
-				createdAt: new Date()
-			};
-			await collection.insertOne(doc);
-			const request = toDTO(doc);
+		create({ song }: SongRequestInput, user: string, now = Date.now()): SongRequestDTO {
+			const row = statements.insert.get(randomUUID(), song.name, song.interprete, song.url, user, now);
+			const request = toDTO(row as unknown as SongRequestRow);
 			publish({ type: 'created', request });
 			return request;
 		},
 
 		/** Returns false if no request with that id exists. */
-		async updateStatus(id: string, status: Status): Promise<boolean> {
-			const _id = new ObjectId(id);
-			const result = await collection.updateOne({ _id }, { $set: { status } });
-			if (result.matchedCount === 0) return false;
+		updateStatus(id: string, status: Status): boolean {
+			if (statements.updateStatus.run(status, id).changes === 0) return false;
 			publish({ type: 'updated', id, status });
 			return true;
 		},
 
 		/** Returns false if no request with that id exists. */
-		async delete(id: string): Promise<boolean> {
-			const result = await collection.deleteOne({ _id: new ObjectId(id) });
-			if (result.deletedCount === 0) return false;
+		delete(id: string): boolean {
+			if (statements.delete.run(id).changes === 0) return false;
 			publish({ type: 'deleted', id });
 			return true;
 		}

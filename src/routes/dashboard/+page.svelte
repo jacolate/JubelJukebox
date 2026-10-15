@@ -15,18 +15,18 @@
     );
 
     function upsert(request: SongRequest) {
-        const index = requests.findIndex((req) => req._id === request._id);
+        const index = requests.findIndex((req) => req.id === request.id);
         if (index === -1) requests.push(request);
         else requests[index] = request;
     }
 
     function setStatus(id: string, status: Status) {
-        const request = requests.find((req) => req._id === id);
+        const request = requests.find((req) => req.id === id);
         if (request) request.status = status;
     }
 
     function remove(id: string) {
-        requests = requests.filter((req) => req._id !== id);
+        requests = requests.filter((req) => req.id !== id);
     }
 
     onMount(() => {
@@ -51,11 +51,11 @@
 
     async function deleteRequest(request: SongRequest) {
         try {
-            const response = await fetch(`/api/request/${request._id}`, { method: "DELETE" });
+            const response = await fetch(`/api/request/${request.id}`, { method: "DELETE" });
             if (!response.ok && response.status !== 404) {
                 throw new Error(`Request failed with status ${response.status}`);
             }
-            remove(request._id);
+            remove(request.id);
         } catch (error) {
             console.error("Error:", error);
         }
@@ -63,7 +63,7 @@
 
     async function changeStatus(request: SongRequest, status: Status) {
         try {
-            const response = await fetch(`/api/request/${request._id}`, {
+            const response = await fetch(`/api/request/${request.id}`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
@@ -73,7 +73,7 @@
             if (!response.ok) {
                 throw new Error(`Request failed with status ${response.status}`);
             }
-            setStatus(request._id, status);
+            setStatus(request.id, status);
         } catch (error) {
             console.error("Error:", error);
         }
@@ -127,7 +127,7 @@
     </div>
 
     <div class="flex flex-col justify-center">
-        {#each sortedRequests as request (request._id)}
+        {#each sortedRequests as request (request.id)}
         <div class="card flex shadow-xl m-5 mx-auto w-3/4"
         class:bg-base-200={request.status === "STASHED"}
              class:bg-base-300={request.status === "PLAYED"}>
