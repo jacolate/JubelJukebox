@@ -1,5 +1,6 @@
 import { ENTRY_CODE } from '$app/env/private';
 import { fail, redirect } from '@sveltejs/kit';
+import { m } from '#lib/paraglide/messages.js';
 import * as v from 'valibot';
 import { startSession } from '#lib/server/auth.ts';
 import { safeEqual } from '#lib/server/password.ts';
@@ -17,7 +18,7 @@ export const actions: Actions = {
 	default: async (event) => {
 		const ip = event.getClientAddress();
 		if (limits.guestLoginFailures.isBlocked(ip)) {
-			return fail(429, { message: 'Zu viele Versuche. Bitte später erneut versuchen.' });
+			return fail(429, { message: m.login_too_many() });
 		}
 
 		const formData = await event.request.formData();
@@ -26,10 +27,10 @@ export const actions: Actions = {
 
 		if (typeof code !== 'string' || !safeEqual(normalizeCode(code), normalizeCode(ENTRY_CODE))) {
 			limits.guestLoginFailures.hit(ip);
-			return fail(400, { message: 'Ungültiger Code' });
+			return fail(400, { message: m.login_invalid_code() });
 		}
 		if (!username.success) {
-			return fail(400, { message: 'Bitte einen Namen mit maximal 40 Zeichen angeben' });
+			return fail(400, { message: m.login_invalid_name() });
 		}
 
 		startSession(event, 'guest', username.output);

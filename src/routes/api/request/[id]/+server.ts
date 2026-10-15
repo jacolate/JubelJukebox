@@ -1,28 +1,30 @@
 import { error } from '@sveltejs/kit';
 import { apiRequireAdmin } from '#lib/server/auth.ts';
 import { readJson } from '#lib/server/http.ts';
-import { songRequests } from '#lib/server/services.ts';
+import { songs } from '#lib/server/services.ts';
+import { isTrackId } from '#lib/spotify.ts';
 import { StatusUpdate } from '#lib/server/validation.ts';
 import type { RequestHandler } from './$types';
 
-function requestId(id: string): string {
-	if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) error(400, 'Invalid ID');
-	return id.toLowerCase();
+function trackIdParam(id: string): string {
+	if (!isTrackId(id)) error(400, 'Invalid ID');
+	return id;
 }
 
 export const PUT: RequestHandler = async (event) => {
 	apiRequireAdmin(event);
-	const id = requestId(event.params.id);
+	const trackId = trackIdParam(event.params.id);
 	const { status } = await readJson(event.request, StatusUpdate);
 
-	if (!songRequests().updateStatus(id, status)) error(404, 'Song request not found');
-	return Response.json({ message: 'Song request updated successfully' });
+	const changed = songs().setStatus(trackId, status);
+	if (!changed) error(404, 'Song not found');
+	return Response.json({ previous: changed.previous });
 };
 
 export const DELETE: RequestHandler = async (event) => {
 	apiRequireAdmin(event);
-	const id = requestId(event.params.id);
+	const trackId = trackIdParam(event.params.id);
 
-	if (!songRequests().delete(id)) error(404, 'Song request not found');
-	return Response.json({ message: 'Song request deleted successfully' });
+	if (!songs().remove(trackId)) error(404, 'Song not found');
+	return Response.json({ message: 'Song deleted' });
 };

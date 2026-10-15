@@ -1,5 +1,5 @@
 import * as v from 'valibot';
-import { normalizeSpotifyTrackUrl } from '#lib/spotifyUrl.ts';
+import { isTrackId } from '#lib/spotify.ts';
 
 export const STATUSES = ['PENDING', 'STASHED', 'PLAYED'] as const;
 export type Status = (typeof STATUSES)[number];
@@ -12,21 +12,12 @@ const text = (max: number) =>
 
 export const Username = text(40);
 
-export const SpotifyTrackUrl = v.pipe(
-	v.string(),
-	v.check((url) => normalizeSpotifyTrackUrl(url) !== null, 'Invalid Spotify track URL'),
-	v.transform((url) => normalizeSpotifyTrackUrl(url) as string)
-);
+export const TrackId = v.pipe(v.string(), v.check((id: string) => isTrackId(id), 'Invalid track id'));
 
-/** Unknown keys (e.g. `user`, `status`) are stripped – the server sets them itself. */
+/** Guests only send the track id; title, artists and cover come from Spotify on the server. */
 export const SongRequestInput = v.object({
-	song: v.object({
-		name: text(200),
-		interprete: text(200),
-		url: SpotifyTrackUrl
-	})
+	trackId: TrackId
 });
-export type SongRequestInput = v.InferOutput<typeof SongRequestInput>;
 
 export const StatusUpdate = v.object({
 	status: v.picklist(STATUSES)

@@ -1,48 +1,43 @@
-import { apiRequireAdmin } from '#lib/server/auth.ts';
+import { apiRequireUser } from '#lib/server/auth.ts';
 import { getDb } from '#lib/server/db.ts';
-import { subscribe, type SongRequestEvent } from '#lib/server/pubsub.ts';
+import type { Send } from '#lib/server/live.ts';
+import { live } from '#lib/server/services.ts';
 import { isSessionActive } from '#lib/server/session.ts';
-import { songRequests } from '#lib/server/services.ts';
 import type { RequestHandler } from './$types';
 
 const HEARTBEAT_MS = 25_000;
 
 /**
- * Server-sent events for the DJ dashboard.
- * Sends the full list as `init` on every (re)connect, followed by `created` / `updated` / `deleted` events.
+ * Server-sent events for admins and guests (see LiveEvents in #lib/types.ts).
+ * Every (re)connect starts with a snapshot (`init` / `guest-init`), followed by changes.
  */
-export const GET: RequestHandler = async (event) => {
-	const session = apiRequireAdmin(event);
+export const GET: RequestHandler = (event) => {
+	const session = apiRequireUser(event);
 	const encoder = new TextEncoder();
 	let cleanup = () => {};
 
 	const stream = new ReadableStream<Uint8Array>({
 		start(controller) {
 			let closed = false;
-			const send = (chunk: string) => {
+			const write = (chunk: string) => {
 				if (!closed) controller.enqueue(encoder.encode(chunk));
 			};
-			const sendEvent = (name: string, data: unknown) => send(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`);
+			const send: Send = (name, data) => write(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`);
 
-			// Subscribe before loading the list so no change can slip through in between.
-			const buffered: SongRequestEvent[] = [];
-			let live = false;
-			const unsubscribe = subscribe((change) => {
-				if (live) sendEvent(change.type, change);
-				else buffered.push(change);
-			});
+			// Database access is synchronous, so no change can slip in between snapshot and registration.
+			const disconnect = live.connect(session.role, session.guestId, send);
 
 			const heartbeat = setInterval(() => {
-				// Close the stream once the admin session has ended (logout or expiry).
+				// Close the stream once the session has ended (logout or expiry).
 				if (!isSessionActive(getDb(), session.id)) return close();
-				send(': ping\n\n');
+				write(': ping\n\n');
 			}, HEARTBEAT_MS);
 
 			function close() {
 				if (closed) return;
 				closed = true;
 				clearInterval(heartbeat);
-				unsubscribe();
+				disconnect();
 				try {
 					controller.close();
 				} catch {
@@ -51,15 +46,6 @@ export const GET: RequestHandler = async (event) => {
 			}
 			cleanup = close;
 			event.request.signal.addEventListener('abort', close);
-
-			try {
-				sendEvent('init', songRequests().list());
-				for (const change of buffered) sendEvent(change.type, change);
-				live = true;
-			} catch (err) {
-				console.error('Failed to load song requests for event stream:', err);
-				close();
-			}
 		},
 		cancel() {
 			cleanup();

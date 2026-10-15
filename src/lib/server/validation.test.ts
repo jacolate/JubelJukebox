@@ -1,65 +1,49 @@
 import * as v from 'valibot';
 import { describe, expect, it } from 'vitest';
-import { normalizeSpotifyTrackUrl } from '#lib/spotifyUrl.ts';
+import { isSpotifyImageUrl, isTrackId, trackUrl } from '#lib/spotify.ts';
 import { SearchQuery, SongRequestInput, StatusUpdate, Username } from './validation.ts';
 
 const ID = '2374M0fQpWi3dLnB54qaLX';
-const song = { name: 'Africa', interprete: 'TOTO', url: `https://open.spotify.com/track/${ID}` };
 
-describe('normalizeSpotifyTrackUrl', () => {
-	it.each([
-		`https://open.spotify.com/track/${ID}`,
-		`https://open.spotify.com/track/${ID}?si=abc`,
-		`https://open.spotify.com/intl-de/track/${ID}`
-	])('accepts %s', (url) => {
-		expect(normalizeSpotifyTrackUrl(url)).toBe(`https://open.spotify.com/track/${ID}`);
+describe('spotify helpers', () => {
+	it('accepts only 22-character base62 track ids', () => {
+		expect(isTrackId(ID)).toBe(true);
+		for (const id of ['', 'short', `${ID}x`, '2374M0fQpWi3dLnB54qa/X', '../../etc/passwd000000', 42, null]) {
+			expect(isTrackId(id)).toBe(false);
+		}
 	});
 
-	it.each([
-		'javascript:alert(document.cookie)',
-		`javascript://open.spotify.com/track/${ID}`,
-		`http://open.spotify.com/track/${ID}`,
-		`https://open.spotify.com.evil.com/track/${ID}`,
-		`https://evil.com/?https://open.spotify.com/track/${ID}`,
-		`https://user:pw@open.spotify.com/track/${ID}`,
-		`https://open.spotify.com/track/${ID}/../../x`,
-		`https://open.spotify.com/album/${ID}`,
-		'data:text/html,<script>alert(1)</script>',
-		'',
-		42,
-		null
-	])('rejects %s', (url) => {
-		expect(normalizeSpotifyTrackUrl(url)).toBeNull();
+	it('builds links only from valid ids', () => {
+		expect(trackUrl(ID)).toBe(`https://open.spotify.com/track/${ID}`);
+		expect(trackUrl('javascript:alert(1)')).toBeNull();
+	});
+
+	it('accepts only Spotify CDN images', () => {
+		expect(isSpotifyImageUrl('https://i.scdn.co/image/ab67616d00004851abc123')).toBe(true);
+		for (const url of [
+			'http://i.scdn.co/image/abc',
+			'https://i.scdn.co.evil.com/image/abc',
+			'https://evil.com/image/abc',
+			'https://i.scdn.co/image/abc"onerror="alert(1)',
+			'javascript:alert(1)'
+		]) {
+			expect(isSpotifyImageUrl(url)).toBe(false);
+		}
 	});
 });
 
 describe('SongRequestInput', () => {
-	it('strips fields the client must not control', () => {
+	it('only keeps the track id – song details from the client are ignored', () => {
 		const result = v.parse(SongRequestInput, {
-			song: { ...song, extra: 'x' },
+			trackId: ID,
+			song: { name: 'Fake', url: 'javascript:alert(1)' },
 			user: 'someone else',
-			status: 'PLAYED',
-			$where: 'sleep(1000)'
+			status: 'PLAYED'
 		});
-		expect(result).toEqual({ song });
+		expect(result).toEqual({ trackId: ID });
 	});
 
-	it('normalizes the url and trims text', () => {
-		const result = v.parse(SongRequestInput, {
-			song: { name: '  Africa ', interprete: 'TOTO', url: `${song.url}?si=1` }
-		});
-		expect(result.song).toEqual(song);
-	});
-
-	it.each([
-		{ song: { ...song, url: 'javascript:alert(1)' } },
-		{ song: { ...song, name: '' } },
-		{ song: { ...song, name: 'x'.repeat(201) } },
-		{ song: { ...song, name: { $gt: '' } } },
-		{ song: { ...song, interprete: 'a\u0000b' } },
-		{ song: 'Africa' },
-		{}
-	])('rejects %j', (input) => {
+	it.each([{}, { trackId: 'x' }, { trackId: { $gt: '' } }, { trackId: `${ID}' OR 1=1 --` }])('rejects %j', (input) => {
 		expect(v.safeParse(SongRequestInput, input).success).toBe(false);
 	});
 });
@@ -75,6 +59,7 @@ describe('other schemas', () => {
 		expect(v.parse(Username, '  Anna ')).toBe('Anna');
 		expect(v.safeParse(Username, '').success).toBe(false);
 		expect(v.safeParse(Username, 'x'.repeat(41)).success).toBe(false);
+		expect(v.safeParse(Username, 'a\u0000b').success).toBe(false);
 		expect(v.safeParse(Username, null).success).toBe(false);
 		expect(v.safeParse(SearchQuery, 'x'.repeat(101)).success).toBe(false);
 	});

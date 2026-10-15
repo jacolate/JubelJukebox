@@ -1,5 +1,6 @@
 import { ADMIN_PASSWORD_HASH, ADMIN_USERNAME } from '$app/env/private';
 import { fail, redirect } from '@sveltejs/kit';
+import { m } from '#lib/paraglide/messages.js';
 import { startSession } from '#lib/server/auth.ts';
 import { safeEqual, verifyPassword } from '#lib/server/password.ts';
 import { limits } from '#lib/server/services.ts';
@@ -13,7 +14,7 @@ export const actions: Actions = {
 	default: async (event) => {
 		const ip = event.getClientAddress();
 		if (limits.adminLoginFailures.isBlocked(ip)) {
-			return fail(429, { message: 'Zu viele Versuche. Bitte später erneut versuchen.' });
+			return fail(429, { message: m.login_too_many() });
 		}
 
 		const formData = await event.request.formData();
@@ -27,7 +28,7 @@ export const actions: Actions = {
 
 		if (!passwordOk || !usernameOk) {
 			limits.adminLoginFailures.hit(ip);
-			return fail(400, { message: 'Ungültige Anmeldedaten' });
+			return fail(400, { message: m.login_invalid_credentials() });
 		}
 
 		limits.adminLoginFailures.reset(ip);

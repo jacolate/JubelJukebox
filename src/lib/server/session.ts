@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { Database } from '#lib/server/sqlite.ts';
 
 export type Role = 'guest' | 'admin';
@@ -8,6 +8,8 @@ export interface Session {
 	id: string;
 	role: Role;
 	username: string;
+	/** Random id of the guest behind this login, used for votes (never the token hash). */
+	guestId: string;
 	expiresAt: Date;
 }
 
@@ -15,6 +17,7 @@ interface SessionRow {
 	id: string;
 	role: Role;
 	username: string;
+	guest_id: string;
 	expires_at: number;
 }
 
@@ -38,12 +41,14 @@ export function createSession(db: Database, token: string, role: Role, username:
 		id: sessionIdFromToken(token),
 		role,
 		username,
+		guestId: randomUUID(),
 		expiresAt: new Date(now + SESSION_LIFETIME[role])
 	};
-	db.prepare('INSERT INTO sessions (id, role, username, expires_at) VALUES (?, ?, ?, ?)').run(
+	db.prepare('INSERT INTO sessions (id, role, username, guest_id, expires_at) VALUES (?, ?, ?, ?, ?)').run(
 		session.id,
 		role,
 		username,
+		session.guestId,
 		session.expiresAt.getTime()
 	);
 	return session;
@@ -59,7 +64,7 @@ export function validateSessionToken(
 	now = Date.now()
 ): { session: Session; renewed: boolean } | null {
 	const id = sessionIdFromToken(token);
-	const row = db.prepare('SELECT id, role, username, expires_at FROM sessions WHERE id = ?').get(id) as
+	const row = db.prepare('SELECT id, role, username, guest_id, expires_at FROM sessions WHERE id = ?').get(id) as
 		| SessionRow
 		| undefined;
 	if (!row) return null;
@@ -69,7 +74,13 @@ export function validateSessionToken(
 		return null;
 	}
 
-	const session: Session = { id, role: row.role, username: row.username, expiresAt: new Date(row.expires_at) };
+	const session: Session = {
+		id,
+		role: row.role,
+		username: row.username,
+		guestId: row.guest_id,
+		expiresAt: new Date(row.expires_at)
+	};
 	const lifetime = SESSION_LIFETIME[row.role];
 	if (row.expires_at - now < lifetime / 2) {
 		session.expiresAt = new Date(now + lifetime);

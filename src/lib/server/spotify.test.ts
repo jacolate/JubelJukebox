@@ -5,7 +5,19 @@ const ID = '2374M0fQpWi3dLnB54qaLX';
 const searchResponse = {
 	tracks: {
 		items: [
-			{ id: ID, name: 'Africa', artists: [{ name: 'TOTO' }] },
+			{
+				id: ID,
+				name: 'Africa',
+				explicit: false,
+				artists: [{ name: 'TOTO' }],
+				album: {
+					images: [
+						{ url: 'https://i.scdn.co/image/large', width: 640 },
+						{ url: 'https://i.scdn.co/image/small', width: 64 },
+						{ url: 'https://evil.com/image/tiny', width: 32 }
+					]
+				}
+			},
 			{ id: 'bad', name: 'Invalid id', artists: [] }
 		]
 	}
@@ -44,7 +56,9 @@ describe('Spotify client', () => {
 		const client = createSpotifyClient({ clientId: 'id', clientSecret: 'secret', fetch });
 
 		const tracks = await client.searchTracks('AC/DC & Queen #1');
-		expect(tracks).toEqual([{ name: 'Africa', interprete: 'TOTO', url: `https://open.spotify.com/track/${ID}` }]);
+		expect(tracks).toEqual([
+			{ trackId: ID, name: 'Africa', artists: 'TOTO', image: 'https://i.scdn.co/image/small', explicit: false }
+		]);
 
 		const searchUrl = new URL(fetch.mock.calls[1][0] as string);
 		expect(searchUrl.searchParams.get('q')).toBe('AC/DC & Queen #1');
@@ -60,6 +74,22 @@ describe('Spotify client', () => {
 		const client = createSpotifyClient({ clientId: 'id', clientSecret: 'secret', fetch });
 		expect(await client.searchTracks('x')).toHaveLength(1);
 		expect(searches).toBe(2);
+	});
+
+	it('looks up single tracks and caches them', async () => {
+		const fetch = mockFetch((url) => {
+			if (url.startsWith('https://accounts')) return Response.json({ access_token: 't', expires_in: 3600 });
+			if (url.endsWith(`/tracks/${ID}`)) return Response.json({ ...searchResponse.tracks.items[0], explicit: true });
+			return new Response(null, { status: 404 });
+		});
+		const client = createSpotifyClient({ clientId: 'id', clientSecret: 'secret', fetch });
+
+		expect(await client.getTrack(ID)).toMatchObject({ trackId: ID, name: 'Africa', explicit: true });
+		await client.getTrack(ID);
+		expect(fetch.mock.calls.filter(([url]) => String(url).includes('/tracks/'))).toHaveLength(1);
+
+		expect(await client.getTrack('0000000000000000000000')).toBeNull();
+		expect(await client.getTrack('../search?q=x')).toBeNull();
 	});
 
 	it('throws a SpotifyError when the API fails', async () => {

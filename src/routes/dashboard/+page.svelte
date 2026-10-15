@@ -1,230 +1,211 @@
 <script lang="ts">
+    import { m } from "#lib/paraglide/messages.js";
     import { onMount } from "svelte";
-    import { normalizeSpotifyTrackUrl } from "#lib/spotifyUrl.ts";
-    import type { SongRequestDTO } from "#lib/types.ts";
+    import { page } from "$app/state";
+    import { api, ApiError } from "#lib/api.ts";
+    import AppHeader from "#lib/components/AppHeader.svelte";
+    import Cog from "#lib/components/icons/Cog.svelte";
+    import RequestCard from "#lib/components/RequestCard.svelte";
+    import SettingsDialog from "#lib/components/SettingsDialog.svelte";
+    import Tabs from "#lib/components/Tabs.svelte";
+    import Toast from "#lib/components/Toast.svelte";
+    import UndoToast from "#lib/components/UndoToast.svelte";
+    import { connectLive } from "#lib/live.svelte.ts";
+    import { showToast } from "#lib/toast.svelte.ts";
+    import type { EventSettings, SongDTO, Status, TabItem } from "#lib/types.ts";
 
-    type SongRequest = SongRequestDTO;
-    type Status = SongRequest["status"];
+    let { data } = $props();
 
-    let requests = $state<SongRequest[]>([]);
-    let sessionCreateModal: HTMLDialogElement;
+    let songs = $state<SongDTO[]>([]);
+    // Starts with the server-rendered settings, then follows the live updates.
+    // svelte-ignore state_referenced_locally
+    let settings = $state<EventSettings>(data.settings);
+    let settingsDialog: SettingsDialog;
 
-    const order: Record<Status, number> = { PENDING: 1, STASHED: 2, PLAYED: 3 };
-    const sortedRequests = $derived(
-        requests.slice().sort((a, b) => (order[a.status] ?? 99) - (order[b.status] ?? 99)),
-    );
+    // --- tabs & sorting, kept in the URL ---
+    type DashboardTab = "open" | "stashed" | "played";
+    type Sort = "oldest" | "newest" | "votes";
+    const tabStatus: Record<DashboardTab, Status> = { open: "PENDING", stashed: "STASHED", played: "PLAYED" };
 
-    function upsert(request: SongRequest) {
-        const index = requests.findIndex((req) => req.id === request.id);
-        if (index === -1) requests.push(request);
-        else requests[index] = request;
+    const tab = $derived.by((): DashboardTab => {
+        const value = page.url.searchParams.get("tab");
+        return value === "stashed" || value === "played" ? value : "open";
+    });
+    const sort = $derived.by((): Sort => {
+        const value = page.url.searchParams.get("sort");
+        return value === "newest" || value === "votes" ? value : "oldest";
+    });
+
+    function hrefFor(next: { tab?: DashboardTab; sort?: Sort }) {
+        const params = new URLSearchParams({ tab: next.tab ?? tab, sort: next.sort ?? sort });
+        return `?${params}`;
     }
 
-    function setStatus(id: string, status: Status) {
-        const request = requests.find((req) => req.id === id);
-        if (request) request.status = status;
+    const counts = $derived({
+        open: songs.filter((s) => s.status === "PENDING").length,
+        stashed: songs.filter((s) => s.status === "STASHED").length,
+        played: songs.filter((s) => s.status === "PLAYED").length,
+    });
+    const tabs = $derived<TabItem[]>([
+        { key: "open", label: m.dashboard_tab_open(), href: hrefFor({ tab: "open" }), count: counts.open },
+        { key: "stashed", label: m.dashboard_tab_stashed(), href: hrefFor({ tab: "stashed" }), count: counts.stashed },
+        { key: "played", label: m.dashboard_tab_played(), href: hrefFor({ tab: "played" }), count: counts.played },
+    ]);
+
+    const visible = $derived.by(() => {
+        const list = songs.filter((s) => s.status === tabStatus[tab]);
+        // In "played", oldest/newest refer to when the song was played.
+        const time = (s: SongDTO) => Date.parse(tab === "played" ? (s.playedAt ?? s.createdAt) : s.createdAt);
+        if (sort === "votes") return list.sort((a, b) => b.votes - a.votes || time(a) - time(b));
+        if (sort === "newest") return list.sort((a, b) => time(b) - time(a));
+        return list.sort((a, b) => time(a) - time(b));
+    });
+
+    // --- live updates ---
+    function upsert(song: SongDTO) {
+        const index = songs.findIndex((s) => s.trackId === song.trackId);
+        if (index === -1) songs.push(song);
+        else songs[index] = song;
     }
 
-    function remove(id: string) {
-        requests = requests.filter((req) => req.id !== id);
+    function remove(trackId: string) {
+        songs = songs.filter((s) => s.trackId !== trackId);
     }
 
     onMount(() => {
-        // The server sends the full list on every (re)connect, then live changes.
-        const events = new EventSource("/api/events");
-        const parse = (event: MessageEvent) => JSON.parse(event.data);
-
-        events.addEventListener("init", (event) => (requests = parse(event)));
-        events.addEventListener("created", (event) => upsert(parse(event).request));
-        events.addEventListener("updated", (event) => {
-            const { id, status } = parse(event);
-            setStatus(id, status);
-        });
-        events.addEventListener("deleted", (event) => remove(parse(event).id));
-        events.addEventListener("error", () => {
-            // EventSource reconnects by itself; a closed stream means the session is gone.
-            if (events.readyState === EventSource.CLOSED) window.location.href = "/admin";
-        });
-
-        return () => events.close();
+        const live = connectLive(
+            {
+                init: (init) => {
+                    songs = init.songs;
+                    settings = init.settings;
+                },
+                song: ({ song }) => upsert(song),
+                removed: ({ trackId }) => remove(trackId),
+                settings: (update) => (settings = update.settings),
+            },
+            { onClosed: () => (window.location.href = "/admin") },
+        );
+        return live.close;
     });
 
-    async function deleteRequest(request: SongRequest) {
+    // --- actions with undo ---
+    let undo = $state<{ message: string; run: () => Promise<unknown> } | null>(null);
+    let undoTimer: ReturnType<typeof setTimeout> | undefined;
+
+    function offerUndo(message: string, run: () => Promise<unknown>) {
+        clearTimeout(undoTimer);
+        undo = { message, run };
+        undoTimer = setTimeout(() => (undo = null), 6000);
+    }
+
+    async function runUndo() {
+        const action = undo;
+        undo = null;
+        clearTimeout(undoTimer);
         try {
-            const response = await fetch(`/api/request/${request.id}`, { method: "DELETE" });
-            if (!response.ok && response.status !== 404) {
-                throw new Error(`Request failed with status ${response.status}`);
-            }
-            remove(request.id);
+            await action?.run();
         } catch (error) {
             console.error("Error:", error);
+            showToast("alert-error", m.dashboard_undo_failed());
         }
     }
 
-    async function changeStatus(request: SongRequest, status: Status) {
+    const statusMessages: Record<Status, (params: { name: string }) => string> = {
+        PLAYED: m.dashboard_marked_played,
+        STASHED: m.dashboard_marked_stashed,
+        PENDING: m.dashboard_marked_pending,
+    };
+
+    /** Long titles would make the undo toast cover half the screen on phones. */
+    const short = (name: string) => (name.length > 40 ? `${name.slice(0, 38).trimEnd()}…` : name);
+
+    async function changeStatus(song: SongDTO, status: Status) {
+        if (song.status === status) return;
         try {
-            const response = await fetch(`/api/request/${request.id}`, {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ status }),
-            });
-            if (!response.ok) {
-                throw new Error(`Request failed with status ${response.status}`);
-            }
-            setStatus(request.id, status);
+            const { previous } = await api.setStatus(song.trackId, status);
+            offerUndo(statusMessages[status]({ name: short(song.name) }), () => api.setStatus(song.trackId, previous));
         } catch (error) {
             console.error("Error:", error);
+            showToast("alert-error", m.dashboard_status_failed());
         }
     }
 
-    function stashRequest(request: SongRequest) {
-        changeStatus(request, "STASHED");
+    async function deleteSong(song: SongDTO) {
+        try {
+            await api.deleteSong(song.trackId);
+            remove(song.trackId);
+            offerUndo(m.dashboard_deleted({ name: short(song.name) }), () => api.restoreSong(song.trackId));
+        } catch (error) {
+            if (error instanceof ApiError && error.status === 404) remove(song.trackId);
+            else {
+                console.error("Error:", error);
+                showToast("alert-error", m.dashboard_delete_failed());
+            }
+        }
     }
 
-    function playRequest(request: SongRequest) {
-        changeStatus(request, "PLAYED");
-    }
-
-    function openSong(request: SongRequest) {
-        // Only ever open real Spotify track links – never user-controlled URLs like javascript:
-        const url = normalizeSpotifyTrackUrl(request.song.url);
-        if (url) window.open(url, "_blank", "noopener,noreferrer");
-    }
+    const emptyMessages: Record<DashboardTab, () => string> = {
+        open: m.dashboard_empty_open,
+        stashed: m.dashboard_empty_stashed,
+        played: m.dashboard_empty_played,
+    };
 </script>
 
 <svelte:head>
-    <title>Dashboard</title>
-    <meta name="description" content="Jukebox – DJ-Dashboard" />
+    <title>{m.meta_dashboard_title()}</title>
+    <meta name="description" content={m.meta_dashboard_description()} />
 </svelte:head>
 
-<section class="flex flex-col h-screen">
-    <div
-        class="flex items-center p-4 gap-3 bg-base-200 shadow-md justify-between"
-    >
-        <div class="flex items-center gap-3">
-            <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-                class="w-10 h-10 text-orange-600"
-            >
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z"
-                />
-            </svg>
-            <h1 class="text-4xl uppercase font-bold">Jukebox</h1>
-        </div>
-        <button
-            class="btn btn-primary mt-4"
-            onclick={() => sessionCreateModal.showModal()}>Create session</button
-        >
-    </div>
+<section class="flex flex-col min-h-dvh">
+    <Toast />
+
+    <!-- On the dashboard the language switch lives in the settings dialog, so the header fits on phones. -->
+    <AppHeader showLocaleSwitch={false}>
+        {#snippet actions()}
+            <div class="flex gap-2 sm:mt-4">
+                <a class="btn btn-ghost hidden sm:inline-flex" href="/dashboard/recap">{m.dashboard_recap()}</a>
+                <!-- Phones: icon only, so the header fits next to the title -->
+                <button class="btn btn-primary max-sm:btn-square" aria-label={m.dashboard_settings()} onclick={() => settingsDialog.open()}>
+                    <Cog class="w-6 h-6 sm:hidden" />
+                    <span class="hidden sm:inline">{m.dashboard_settings()}</span>
+                </button>
+            </div>
+        {/snippet}
+    </AppHeader>
+
+    <Tabs items={tabs} active={tab}>
+        {#snippet extra()}
+            <div class="flex items-center gap-2 py-1">
+                {#if !settings.requestsOpen}
+                    <span class="badge badge-warning">{m.dashboard_paused()}</span>
+                {/if}
+                <select
+                    class="select select-sm w-auto my-1"
+                    aria-label={m.dashboard_sort()}
+                    value={sort}
+                    onchange={(e) => (window.location.search = hrefFor({ sort: e.currentTarget.value as Sort }))}
+                >
+                    <option value="oldest">{m.dashboard_sort_oldest()}</option>
+                    <option value="newest">{m.dashboard_sort_newest()}</option>
+                    <option value="votes">{m.dashboard_sort_votes()}</option>
+                </select>
+            </div>
+        {/snippet}
+    </Tabs>
 
     <div class="flex flex-col justify-center">
-        {#each sortedRequests as request (request.id)}
-        <div class="card flex shadow-xl m-5 mx-auto w-3/4"
-        class:bg-base-200={request.status === "STASHED"}
-             class:bg-base-300={request.status === "PLAYED"}>
-             <div class="card-body flex-row justify-between items-center m-1 gap-3">
-                <div>
-                <p class="overflow-hidden"><strong>Song:</strong> {request.song.name}</p>
-                <p class="overflow-hidden"><strong>Interpret:</strong> {request.song.interprete}</p>
-                <p><strong>Requested by:</strong> {request.user}</p>
-                </div>
-                <div class="flex flex-row justify-center items-center gap-2">
-                    <div class="badge gap-2"
-                    class:badge-info={request.status === "PENDING"}
-                    class:badge-warning={request.status === "STASHED"}
-                    class:badge-success={request.status === "PLAYED"}
-                    >
-                        {request.status}
-                </div>
-
-                <button aria-label="Auf Spotify öffnen" onclick={() => openSong(request)}>
-                    <svg class="p-1" xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 496 512"><!--!Font Awesome Free 6.5.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.-->
-                        <path fill="#1db954" d="M248 8C111.1 8 0 119.1 0 256s111.1 248 248 248 248-111.1 248-248S384.9 8 248 8zm100.7 364.9c-4.2 0-6.8-1.3-10.7-3.6-62.4-37.6-135-39.2-206.7-24.5-3.9 1-9 2.6-11.9 2.6-9.7 0-15.8-7.7-15.8-15.8 0-10.3 6.1-15.2 13.6-16.8 81.9-18.1 165.6-16.5 237 26.2 6.1 3.9 9.7 7.4 9.7 16.5s-7.1 15.4-15.2 15.4zm26.9-65.6c-5.2 0-8.7-2.3-12.3-4.2-62.5-37-155.7-51.9-238.6-29.4-4.8 1.3-7.4 2.6-11.9 2.6-10.7 0-19.4-8.7-19.4-19.4s5.2-17.8 15.5-20.7c27.8-7.8 56.2-13.6 97.8-13.6 64.9 0 127.6 16.1 177 45.5 8.1 4.8 11.3 11 11.3 19.7-.1 10.8-8.5 19.5-19.4 19.5zm31-76.2c-5.2 0-8.4-1.3-12.9-3.9-71.2-42.5-198.5-52.7-280.9-29.7-3.6 1-8.1 2.6-12.9 2.6-13.2 0-23.3-10.3-23.3-23.6 0-13.6 8.4-21.3 17.4-23.9 35.2-10.3 74.6-15.2 117.5-15.2 73 0 149.5 15.2 205.4 47.8 7.8 4.5 12.9 10.7 12.9 22.6 0 13.6-11 23.3-23.2 23.3z"/>
-                    </svg>
-                </button>
-                <button aria-label="Als gespielt markieren" onclick={() => playRequest(request)}>
-                    <svg class="text-black bg-success dark:text-success dark:bg-transparent p-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="50" height="50" fill="none" viewBox="0 0 24 24">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M5 11.917 9.724 16.5 19 7.5"/>
-                    </svg>
-                                      </button>
-                <button aria-label="Zurückstellen" onclick={() => stashRequest(request)}>
-                    <svg class="light:text-black bg-warning dark:text-warning dark:bg-transparent p-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="50" height="50" fill="none" viewBox="0 0 24 24">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
-                    </svg>
-                                      </button>
-                <button aria-label="Löschen" onclick={() => deleteRequest(request)}>
-                <svg class="text-black bg-error dark:text-error dark:bg-transparent p-1" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="50" height="50" fill="none" viewBox="0 0 24 24">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M5 7h14m-9 3v8m4-8v8M10 3h4a1 1 0 0 1 1 1v3H9V4a1 1 0 0 1 1-1ZM6 7h12v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7Z"/>
-                  </svg>
-                </button>
-                </div>
-                </div>
-            </div>
+        {#each visible as song (song.trackId)}
+            <RequestCard
+                {song}
+                onplay={() => changeStatus(song, "PLAYED")}
+                onstash={() => changeStatus(song, "STASHED")}
+                ondelete={() => deleteSong(song)}
+            />
+        {:else}
+            <p class="text-center text-lg opacity-70 py-16">{emptyMessages[tab]()}</p>
         {/each}
     </div>
 
-
-    <div
-        class="flex flex-col h-5/6 justify-between self-center mt-10 w-11/12 md:w-5/12"
-    >
-        <dialog id="session_create_modal" class="modal" bind:this={sessionCreateModal}>
-            <div class="modal-box">
-            <h2 class="text-2xl font-bold">Create a new session</h2>
-                <form method="dialog">
-                    <button
-                        class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-                        >✕</button
-                    >
-                </form>
-                <div class="mt-8">
-                <div class="w-4/6 self-center">
-                    <label class="input input-bordered flex items-center gap-2">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 16 16"
-                            fill="currentColor"
-                            class="w-4 h-4 opacity-70"
-                            ><path
-                                fill-rule="evenodd"
-                                d="M14 6a4 4 0 0 1-4.899 3.899l-1.955 1.955a.5.5 0 0 1-.353.146H5v1.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-2.293a.5.5 0 0 1 .146-.353l3.955-3.955A4 4 0 1 1 14 6Zm-4-2a.75.75 0 0 0 0 1.5.5.5 0 0 1 .5.5.75.75 0 0 0 1.5 0 2 2 0 0 0-2-2Z"
-                                clip-rule="evenodd"
-                            /></svg
-                        >
-                        <input
-                            type="text"
-                            class="grow"
-                            placeholder="Session code"
-                        />
-                    </label>
-                    </div>
-                    <div class="flex justify-end gap-2">
-                        <button class="btn btn-primary"
-                            >Create</button
-                        >
-                    </div>
-                </div>
-            </div>
-        </dialog>
-    </div>
+    <UndoToast message={undo?.message ?? null} onundo={runUndo} />
+    <SettingsDialog bind:this={settingsDialog} {settings} joinUrl={data.joinUrl} qrSvg={data.qrSvg} />
 </section>
-
-<style>
-    svg {
-    cursor: pointer;
-    transition: background-color 0.3s;
-    border-radius: 50%;
-  }
-
-  svg:hover {
-    background-color:gainsboro;
-  }
-</style>

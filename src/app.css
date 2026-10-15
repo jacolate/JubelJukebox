@@ -108,4 +108,24 @@
 			line-height: 1.5rem;
 		}
 	}
+
+	/* Phones: small buttons get a touch target of 40px, form fields 16px text (no iOS auto-zoom). */
+	@layer daisyui.mobile {
+		@media (max-width: 639px) {
+			.btn-sm,
+			.select-sm {
+				--size: 2.5rem;
+			}
+			.textarea,
+			.select {
+				font-size: 1rem;
+			}
+		}
+	}
+}
+
+button,
+a,
+label {
+	touch-action: manipulation;
 }
