@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
-FROM node:24-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
 RUN npm run build && npm prune --omit=dev
 
-FROM node:24-alpine AS run
+FROM node:25-alpine AS run
 ENV NODE_ENV=production \
     PORT=3000 \
     DATABASE_PATH=/app/data/jukebox.db \
