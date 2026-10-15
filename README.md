@@ -14,13 +14,15 @@ Stack: SvelteKit 3 · Svelte 5 · Tailwind 4 + daisyUI 5 · SQLite (`node:sqlite
 Requirements: a server with Docker, a domain pointing to it, and ports 80/443 open.
 
 ```bash
-cp .env.example .env              # fill in the values (see Configuration)
+cp .env.example .env              # set DOMAIN and fill in the app values (see Configuration)
 docker run --rm -it -v "$PWD":/app -w /app node:24-alpine node scripts/hash-password.ts   # put the hash into .env
-DOMAIN=jukebox.example.com docker compose up -d --build
+docker compose up -d --build      # or: podman-compose up -d --build
+docker compose logs -f app
 ```
 
-`compose.yaml` starts the app with [Caddy](https://caddyserver.com) as reverse proxy. Caddy obtains a Let's Encrypt certificate automatically. The app itself is not exposed.
-For a quick local try use `DOMAIN=localhost`.
+`compose.yaml` starts the app with [Caddy](https://caddyserver.com) as reverse proxy. Caddy obtains a Let's Encrypt certificate for `DOMAIN` automatically. The app itself is not exposed.
+
+Local test: set `DOMAIN=localhost` in `.env` and open https://localhost (the browser warns once about Caddy's local test certificate). Rootless Podman can't bind ports below 1024, so also set `HTTP_PORT=8080` and `HTTPS_PORT=8443` and open https://localhost:8443.
 
 The database lives in the `app-data` volume (`/app/data/jukebox.db`). Backup:
 
@@ -69,6 +71,7 @@ All variables are validated at startup (`src/env.ts`). If one is missing or inva
 | `ADMIN_PASSWORD_HASH` | scrypt hash of the DJ password, create it with `npm run hash-password` |
 | `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | Spotify app (client credentials flow), only used on the server |
 | `DATABASE_PATH` | SQLite file, default `data/jukebox.db` (`/app/data/jukebox.db` in the container) |
+| `DOMAIN`, `HTTP_PORT`, `HTTPS_PORT` | Only for `compose.yaml`: public domain for Caddy and host ports (default 80/443) |
 
 Set in the image (see `Dockerfile`): `PROTOCOL_HEADER`, `HOST_HEADER`, `ADDRESS_HEADER` and `XFF_DEPTH=1` for running behind a reverse proxy, plus `BODY_SIZE_LIMIT=64K`.
 

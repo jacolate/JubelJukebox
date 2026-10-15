@@ -1,7 +1,6 @@
-# Production setup: DOMAIN=jukebox.example.com docker compose up -d
+# Configure DOMAIN, HTTP_PORT and HTTPS_PORT in .env (see .env.example), then: docker compose up -d --build
 # Caddy obtains a Let's Encrypt certificate for DOMAIN automatically (ports 80/443 must be reachable).
-# For a local test use DOMAIN=localhost (Caddy then uses its own local certificate authority),
-# with Podman rootless also HTTPS_PORT=8443 HTTP_PORT=8080, and open https://localhost:8443.
+# DOMAIN=localhost makes Caddy use its own local certificate authority for testing.
 services:
   app:
     build: .
@@ -24,9 +23,9 @@ services:
     restart: unless-stopped
     depends_on: [app]
     environment:
-      DOMAIN: ${DOMAIN:?set DOMAIN, e.g. DOMAIN=jukebox.example.com}
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env, e.g. DOMAIN=jukebox.example.com}
     ports:
-      # Override for rootless Podman/Docker or local tests, e.g. HTTP_PORT=8080 HTTPS_PORT=8443
+      # Rootless Podman/Docker needs ports above 1024, e.g. HTTP_PORT=8080 HTTPS_PORT=8443
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
       - "${HTTPS_PORT:-443}:443/udp"
