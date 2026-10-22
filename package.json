@@ -22,21 +22,21 @@
 		"valibot": "^1.5.0"
 	},
 	"devDependencies": {
-		"@inlang/paraglide-js": "^2.28.0",
+		"@inlang/paraglide-js": "^2.29.0",
 		"@inlang/plugin-message-format": "^4.5.4",
 		"@playwright/test": "^1.64.1",
 		"@sveltejs/adapter-node": "^6.0.0",
 		"@sveltejs/kit": "^3.1.0",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@tailwindcss/vite": "^4.3.3",
-		"@types/node": "^24.0.0",
+		"@types/node": "^26.6.5",
 		"daisyui": "^5.7.50",
 		"svelte": "^5.57.2",
-		"svelte-check": "^4.7.6",
+		"svelte-check": "^4.7.7",
 		"tailwindcss": "^4.3.3",
-		"typescript": "^6.0.0",
+		"typescript": "^7.0.2",
 		"vite": "^8.3.4",
-		"vitest": "^5.0.4"
+		"vitest": "^5.0.5"
 	},
 	"imports": {
 		"#lib/*": "./src/lib/*"
